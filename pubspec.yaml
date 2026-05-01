@@ -1,0 +1,55 @@
+name: note365_mobile
+description: "Note365 — Real-time clinical voice transcription mobile app."
+publish_to: 'none'
+
+version: 1.0.0+1
+
+environment:
+  sdk: ^3.11.5
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  cupertino_icons: ^1.0.8
+
+  # ── State management & DI ─────────────────────────────────────────────────
+  # Riverpod is the de-facto standard for scalable Flutter apps: compile-time
+  # safe dependency injection, async-friendly, testable, and supports feature
+  # composition without InheritedWidget boilerplate.
+  flutter_riverpod: ^2.6.1
+
+  # ── Routing ───────────────────────────────────────────────────────────────
+  # go_router is the official declarative router. Single screen today,
+  # easily extended to multi-feature flows tomorrow (auth, settings, history).
+  go_router: ^14.6.0
+
+  # ── Networking ────────────────────────────────────────────────────────────
+  web_socket_channel: ^3.0.2
+
+  # ── Audio capture ─────────────────────────────────────────────────────────
+  # `record` exposes a Stream<Uint8List> of raw PCM bytes (`startStream`),
+  # which is exactly what the backend wants (16-kHz, 16-bit, mono Linear16).
+  record: ^6.0.0
+
+  # ── Permissions ───────────────────────────────────────────────────────────
+  permission_handler: ^12.0.0+1
+
+  # ── Persistence / files ───────────────────────────────────────────────────
+  path_provider: ^2.1.5
+  share_plus: ^11.1.0
+
+  # ── UX polish ─────────────────────────────────────────────────────────────
+  google_fonts: ^6.2.1
+
+  # ── Diagnostics ───────────────────────────────────────────────────────────
+  logger: ^2.5.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+
+  flutter_lints: ^6.0.0
+
+flutter:
+  uses-material-design: true
