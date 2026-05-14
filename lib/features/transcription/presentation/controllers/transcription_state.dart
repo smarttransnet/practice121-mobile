@@ -4,12 +4,14 @@ import '../../data/models/transcription_event.dart';
 
 /// High-level lifecycle of a transcription session.
 ///
-/// `idle`        - Nothing happening. Mic is the prominent CTA.
-/// `connecting`  - Opening WS / requesting mic. Show spinner on the mic button.
-/// `recording`   - Live: streaming audio, receiving interim/final transcripts.
-/// `processing`  - User pressed Stop. Server is running Gemini. Show shimmer.
-/// `noteReady`   - Final clinical note has arrived. Show the note panel.
-/// `error`       - Last action failed. Surface a recoverable error message.
+/// `idle`             - Nothing happening. Mic is the prominent CTA.
+/// `connecting`       - Opening WS / requesting mic. Show spinner on the mic button.
+/// `recording`        - Live: streaming audio, receiving interim/final transcripts.
+/// `processing`       - User pressed Stop. Server is running Gemini. Show shimmer.
+/// `noteReady`        - Final clinical note has arrived. Show the note panel.
+/// `error`            - Last action failed. Surface a recoverable error message.
+/// `commandRecording` - User is speaking an amendment command (Talk to Edit).
+/// `amending`         - Sending amendment request to the server.
 enum SessionStatus {
   idle,
   connecting,
@@ -17,6 +19,8 @@ enum SessionStatus {
   processing,
   noteReady,
   error,
+  commandRecording,
+  amending,
 }
 
 class TranscriptionState {
@@ -31,6 +35,10 @@ class TranscriptionState {
     this.audioLevels = const [],
     this.recordingStartedAt,
     this.totalBytesReceived = 0,
+    this.amendmentCommand = '',
+    this.originalProcessedNote,
+    this.amendmentHistory = const [],
+    this.isSendingEmail = false,
   });
 
   final SessionStatus status;
@@ -43,6 +51,12 @@ class TranscriptionState {
 
   /// The Gemini-generated SOAP-style clinical note (only set after Stop).
   final String? processedNote;
+
+  /// The very first version of the processedNote before any amendments.
+  final String? originalProcessedNote;
+
+  /// List of all amendment commands applied in this session.
+  final List<String> amendmentHistory;
 
   /// Verbatim concatenated transcript (only set after Stop).
   final String? fullTranscript;
@@ -65,12 +79,23 @@ class TranscriptionState {
   /// Used in the debug panel to display actual vs expected data rate.
   final int totalBytesReceived;
 
+  /// The transcribed text of the voice command for amendment.
+  final String amendmentCommand;
+
+  /// Whether an email is currently being sent.
+  final bool isSendingEmail;
+
   bool get isRecording => status == SessionStatus.recording;
+  bool get isCommandRecording => status == SessionStatus.commandRecording;
+  bool get isAmending => status == SessionStatus.amending;
+
   bool get isBusy =>
       status == SessionStatus.connecting ||
-      status == SessionStatus.processing;
+      status == SessionStatus.processing ||
+      status == SessionStatus.amending;
+
   bool get hasNote =>
-      status == SessionStatus.noteReady &&
+      (status == SessionStatus.noteReady || status == SessionStatus.amending || status == SessionStatus.commandRecording) &&
       (processedNote?.isNotEmpty ?? false);
 
   /// Most recent amplitude on a 0..1 scale (clamped). Drives the orb.
@@ -110,6 +135,11 @@ class TranscriptionState {
     DateTime? recordingStartedAt,
     bool clearRecordingStartedAt = false,
     int? totalBytesReceived,
+    String? amendmentCommand,
+    bool clearAmendmentCommand = false,
+    String? originalProcessedNote,
+    List<String>? amendmentHistory,
+    bool? isSendingEmail,
   }) {
     return TranscriptionState(
       status: status ?? this.status,
@@ -127,6 +157,15 @@ class TranscriptionState {
           : (recordingStartedAt ?? this.recordingStartedAt),
       totalBytesReceived:
           totalBytesReceived ?? this.totalBytesReceived,
+      amendmentCommand: clearAmendmentCommand
+          ? ''
+          : (amendmentCommand ?? this.amendmentCommand),
+      originalProcessedNote: clearProcessedNote
+          ? null
+          : (originalProcessedNote ?? this.originalProcessedNote),
+      amendmentHistory:
+          clearProcessedNote ? const [] : (amendmentHistory ?? this.amendmentHistory),
+      isSendingEmail: isSendingEmail ?? this.isSendingEmail,
     );
   }
 }

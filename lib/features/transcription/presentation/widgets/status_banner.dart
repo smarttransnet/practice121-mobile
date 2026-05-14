@@ -23,7 +23,7 @@ class StatusBanner extends StatelessWidget {
       ),
       SessionStatus.connecting => (
         'Connecting…',
-        'Linking up with Note365 securely',
+        'Linking up with Practice121 securely',
       ),
       SessionStatus.recording => (
         'Listening',
@@ -36,6 +36,14 @@ class StatusBanner extends StatelessWidget {
       SessionStatus.noteReady => (
         'Your note is ready',
         'Open it below to review, copy, or share',
+      ),
+      SessionStatus.commandRecording => (
+        'Listening for command',
+        'Tell Gemini what you want to change',
+      ),
+      SessionStatus.amending => (
+        'Updating note',
+        'Gemini is applying your changes',
       ),
       SessionStatus.error => (
         'Something went wrong',

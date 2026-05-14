@@ -7,7 +7,7 @@
     <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS"/>
 
     <application
-        android:label="Note365"
+        android:label="Practice121"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher"
         android:usesCleartextTraffic="false">

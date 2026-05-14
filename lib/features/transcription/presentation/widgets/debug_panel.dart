@@ -466,17 +466,21 @@ class _DiagnosticsCard extends StatelessWidget {
   }
 
   static String _statusLabel(SessionStatus s) => switch (s) {
-        SessionStatus.idle => 'idle',
-        SessionStatus.connecting => 'connecting',
-        SessionStatus.recording => 'recording',
-        SessionStatus.processing => 'processing',
-        SessionStatus.noteReady => 'note ready',
-        SessionStatus.error => 'error',
+        SessionStatus.idle => 'IDLE',
+        SessionStatus.connecting => 'CONNECTING',
+        SessionStatus.recording => 'RECORDING',
+        SessionStatus.commandRecording => 'COMMAND_REC',
+        SessionStatus.processing => 'PROCESSING',
+        SessionStatus.amending => 'AMENDING',
+        SessionStatus.noteReady => 'NOTE_READY',
+        SessionStatus.error => 'ERROR',
       };
 
   static Color _statusColor(ThemeData theme, SessionStatus s) => switch (s) {
         SessionStatus.recording => AppColors.recording,
+        SessionStatus.commandRecording => AppColors.recording,
         SessionStatus.processing => AppColors.sparkle,
+        SessionStatus.amending => AppColors.sparkle,
         SessionStatus.noteReady => AppColors.success,
         SessionStatus.error => theme.colorScheme.error,
         _ => theme.colorScheme.outline,

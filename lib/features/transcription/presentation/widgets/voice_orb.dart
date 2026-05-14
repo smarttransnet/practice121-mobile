@@ -100,8 +100,10 @@ class _VoiceOrbState extends State<VoiceOrb>
         button: true,
         label: switch (widget.status) {
           SessionStatus.recording => 'Stop recording',
-          SessionStatus.connecting => 'Connecting to Note365',
+          SessionStatus.commandRecording => 'Stop command recording',
+          SessionStatus.connecting => 'Connecting to Practice121',
           SessionStatus.processing => 'Generating clinical note',
+          SessionStatus.amending => 'Updating clinical note',
           _ => 'Start recording',
         },
         child: Stack(
@@ -166,6 +168,7 @@ class _CenterIcon extends StatelessWidget {
     switch (status) {
       case SessionStatus.connecting:
       case SessionStatus.processing:
+      case SessionStatus.amending:
         return const SizedBox(
           width: 32,
           height: 32,
@@ -175,6 +178,7 @@ class _CenterIcon extends StatelessWidget {
           ),
         );
       case SessionStatus.recording:
+      case SessionStatus.commandRecording:
         return const Icon(Icons.stop_rounded, color: Colors.white, size: 56);
       case SessionStatus.error:
         return const Icon(
@@ -219,8 +223,8 @@ class _OrbPainter extends CustomPainter {
     final center = size.center(Offset.zero);
     final maxRadius = size.shortestSide / 2;
 
-    final isRecording = status == SessionStatus.recording;
-    final isProcessing = status == SessionStatus.processing;
+    final isRecording = status == SessionStatus.recording || status == SessionStatus.commandRecording;
+    final isProcessing = status == SessionStatus.processing || status == SessionStatus.amending;
     final isError = status == SessionStatus.error;
 
     // Color palette per state.

@@ -10,6 +10,8 @@ import '../../../../core/permissions/permission_service.dart';
 import '../../data/models/transcription_event.dart';
 import '../../data/repositories/transcription_repository.dart';
 import '../../data/services/audio_capture_service.dart';
+import '../../data/services/note_amend_service.dart';
+import '../../data/services/note_email_service.dart';
 import '../../data/services/transcription_socket_service.dart';
 import 'transcription_state.dart';
 
@@ -24,6 +26,14 @@ final appConfigProvider = Provider<AppConfig>((ref) {
 
 final permissionServiceProvider = Provider<PermissionService>((ref) {
   return const PermissionService();
+});
+
+final noteAmendServiceProvider = Provider<NoteAmendService>((ref) {
+  return NoteAmendService();
+});
+
+final noteEmailServiceProvider = Provider<NoteEmailService>((ref) {
+  return NoteEmailService();
 });
 
 /// Repository factory — fresh instance per session so old subscriptions can't
@@ -43,6 +53,9 @@ final transcriptionControllerProvider =
   return TranscriptionController(
     permissionService: ref.read(permissionServiceProvider),
     repositoryFactory: ref.read(transcriptionRepositoryFactoryProvider),
+    amendService: ref.read(noteAmendServiceProvider),
+    sendGridService: ref.read(noteEmailServiceProvider),
+    config: ref.read(appConfigProvider),
   );
 });
 
@@ -54,12 +67,21 @@ class TranscriptionController extends StateNotifier<TranscriptionState> {
   TranscriptionController({
     required PermissionService permissionService,
     required TranscriptionRepository Function() repositoryFactory,
+    required NoteAmendService amendService,
+    required NoteEmailService sendGridService,
+    required AppConfig config,
   })  : _permissionService = permissionService,
         _repositoryFactory = repositoryFactory,
+        _amendService = amendService,
+        _emailService = sendGridService,
+        _config = config,
         super(const TranscriptionState());
 
   final PermissionService _permissionService;
   final TranscriptionRepository Function() _repositoryFactory;
+  final NoteAmendService _amendService;
+  final NoteEmailService _emailService;
+  final AppConfig _config;
 
   TranscriptionRepository? _activeRepository;
   StreamSubscription<TranscriptionEvent>? _eventSub;
@@ -81,6 +103,118 @@ class TranscriptionController extends StateNotifier<TranscriptionState> {
   /// User-facing message produced when the user stops the session and waits
   /// for Gemini.
   static const _processingTimeout = Duration(minutes: 5);
+
+  /// Start a voice-command recording session for amendment.
+  Future<void> startCommand() async {
+    if (state.isBusy || state.isRecording) return;
+
+    AppLogger.i('TranscriptionController.startCommand()');
+    await _disposeActiveRepository();
+    final epoch = ++_sessionEpoch;
+
+    state = state.copyWith(
+      status: SessionStatus.commandRecording,
+      amendmentCommand: '',
+      clearAmendmentCommand: true,
+      audioLevels: List<double>.filled(AudioConstants.visualizerBarCount, 0),
+    );
+
+    final permission = await _permissionService.ensureMicrophone();
+    if (permission != MicPermissionResult.granted) {
+      _failWith('Microphone permission is required to record commands.');
+      return;
+    }
+    if (epoch != _sessionEpoch) return;
+
+    final repo = _repositoryFactory();
+    _activeRepository = repo;
+
+    try {
+      final session = await repo.startSession(isCommand: true);
+      if (epoch != _sessionEpoch) {
+        await repo.dispose();
+        return;
+      }
+
+      _eventSub = session.events.listen(
+        (event) {
+          if (epoch != _sessionEpoch) return;
+          if (event.transcript.isNotEmpty) {
+            state = state.copyWith(amendmentCommand: event.transcript);
+          }
+        },
+        onError: (e, s) => _onEventError(e, s, epoch),
+        onDone: () => _onEventDone(epoch),
+      );
+
+      _levelsSub = session.audioLevels.listen(
+        (rms) => _onAudioLevel(rms, epoch),
+      );
+
+      _recordingStartedAt = DateTime.now();
+      _startRecordingTicker();
+
+      state = state.copyWith(recordingStartedAt: _recordingStartedAt);
+    } catch (e) {
+      _failWith('Could not start command session: $e');
+    }
+  }
+
+  /// Stop voice-command recording and trigger amendment.
+  Future<void> stopCommand() async {
+    if (state.status != SessionStatus.commandRecording) return;
+
+    final command = state.amendmentCommand;
+    AppLogger.i('TranscriptionController.stopCommand() command: $command');
+
+    _stopRecordingTicker();
+    await _disposeActiveRepository();
+
+    if (command.trim().isEmpty) {
+      state = state.copyWith(status: SessionStatus.noteReady);
+      return;
+    }
+
+    await amendNote(command);
+  }
+
+  /// Send a text or voice command to Gemini to amend the current note.
+  Future<void> amendNote(String command) async {
+    if (state.processedNote == null) return;
+
+    AppLogger.i('TranscriptionController.amendNote() command: $command');
+
+    state = state.copyWith(
+      status: SessionStatus.amending,
+      clearError: true,
+    );
+
+    try {
+      final amended = await _amendService.amendClinicalNote(
+        url: Uri.parse(_config.amendUrl),
+        originalNote: state.processedNote!,
+        command: command,
+        modelName: state.config.modelName,
+      );
+
+      state = state.copyWith(
+        status: SessionStatus.noteReady,
+        processedNote: amended,
+        amendmentHistory: [...state.amendmentHistory, command],
+        clearError: true,
+      );
+    } on Failure catch (f) {
+      state = state.copyWith(
+        status: SessionStatus.noteReady,
+        errorMessage: f.message,
+      );
+    } catch (e) {
+      state = state.copyWith(
+        status: SessionStatus.noteReady,
+        errorMessage: 'Amendment failed: $e',
+      );
+    }
+  }
 
   /// Update the prompt that will be sent on the next start.
   void updatePrompt(String? prompt) {
@@ -247,6 +381,57 @@ class TranscriptionController extends StateNotifier<TranscriptionState> {
     });
   }
 
+  /// Send the clinical session summary via email using SendGrid.
+  Future<void> sendSummaryViaSendGrid({required String prescription}) async {
+    AppLogger.i('TranscriptionController.sendSummaryViaSendGrid()');
+    final note = state.processedNote;
+    if (note == null) {
+      AppLogger.w('sendSummaryViaSendGrid aborted: No processed note found');
+      return;
+    }
+
+    final originalNote = state.originalProcessedNote ?? note;
+    final amendments = state.amendmentHistory.isEmpty
+        ? 'None'
+        : state.amendmentHistory.join('\n- ');
+    final now = DateTime.now();
+    final timestamp =
+        '${now.day}/${now.month}/${now.year} ${now.hour}:${now.minute.toString().padLeft(2, '0')}';
+
+    final emailBody = '''
+- Original Note -
+$originalNote
+
+- Amendments -
+$amendments
+
+- Prescription -
+$prescription
+
+- Session -
+https://storage.googleapis.com/note366-stt-frontend-dev/index.html
+''';
+
+    state = state.copyWith(isSendingEmail: true, clearError: true);
+
+    try {
+      AppLogger.i('TranscriptionController.sendSummaryViaSendGrid() - Attempting via backend...');
+      await _emailService.sendClinicalNoteEmail(
+        url: Uri.parse(_config.emailUrl),
+        toEmail: 'mihipal@gmail.com',
+        subject: 'Session and $timestamp',
+        body: emailBody,
+      );
+      AppLogger.i('TranscriptionController.sendSummaryViaSendGrid() - SUCCESS');
+      state = state.copyWith(isSendingEmail: false);
+    } catch (e, stack) {
+      AppLogger.e('TranscriptionController.sendSummaryViaSendGrid() - FAILURE: $e', e, stack);
+      state = state.copyWith(isSendingEmail: false);
+      if (e is Failure) rethrow;
+      throw UnexpectedFailure('Could not send email via backend: $e');
+    }
+  }
+
   /// Reset to idle (used after dismissing an error, or after the user
   /// closes the clinical note panel).
   void reset() {
@@ -274,6 +459,7 @@ class TranscriptionController extends StateNotifier<TranscriptionState> {
       state = state.copyWith(
         status: SessionStatus.noteReady,
         processedNote: event.processedNote,
+        originalProcessedNote: event.processedNote, // Initial version
         fullTranscript: event.fullTranscript,
         interim: '',
       );
