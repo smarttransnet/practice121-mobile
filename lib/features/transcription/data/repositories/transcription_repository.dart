@@ -39,13 +39,19 @@ class TranscriptionRepository {
 
   /// Open the session. Throws on connection / mic failures.
   Future<TranscriptionSession> startSession({
-    required SessionConfig config,
+    SessionConfig config = SessionConfig.empty,
+    bool isCommand = false,
   }) async {
-    AppLogger.i('TranscriptionRepository.startSession()');
+    AppLogger.i('TranscriptionRepository.startSession(isCommand: $isCommand)');
+
+    final url = isCommand
+        ? Uri.parse(_appConfig.voiceCommandWsUrl)
+        : Uri.parse(_appConfig.transcriptionWsUrl);
 
     final eventStream = await _socket.connect(
-      url: Uri.parse(_appConfig.transcriptionWsUrl),
+      url: url,
       config: config,
+      includeConfig: !isCommand,
     );
 
     final Stream<AudioFrame> audioStream;

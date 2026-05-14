@@ -13,5 +13,5 @@ void main() {
     DeviceOrientation.portraitDown,
   ]);
 
-  runApp(const ProviderScope(child: Note365App()));
+  runApp(const ProviderScope(child: Practice121App()));
 }

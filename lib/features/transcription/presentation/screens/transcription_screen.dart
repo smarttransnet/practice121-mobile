@@ -78,10 +78,6 @@ class _TranscriptionScreenState extends ConsumerState<TranscriptionScreen> {
     final controller = ref.read(transcriptionControllerProvider.notifier);
 
     return Scaffold(
-      // End drawer surfaces the live transcript + diagnostics for debug only.
-      // Doctors don't see this unless they explicitly tap the bug icon in the
-      // header, keeping the primary recording UX calm and focused.
-      endDrawer: const DebugPanel(),
       // Ambient gradient that morphs with the session status — gives the
       // whole screen a state-aware mood without adding any extra UI chrome.
       body: _AmbientBackground(
@@ -198,7 +194,9 @@ class _AmbientBackground extends StatelessWidget {
 
     final accent = switch (status) {
       SessionStatus.recording => AppColors.recording,
+      SessionStatus.commandRecording => AppColors.recording,
       SessionStatus.processing => AppColors.sparkle,
+      SessionStatus.amending => AppColors.sparkle,
       SessionStatus.noteReady => AppColors.success,
       SessionStatus.error => theme.colorScheme.error,
       _ => theme.colorScheme.primary,
@@ -257,20 +255,9 @@ class _Header extends StatelessWidget {
             ),
           ),
           const SizedBox(width: 10),
-          Text('Note365', style: theme.textTheme.titleLarge),
+          Text('Practice121', style: theme.textTheme.titleLarge),
           const Spacer(),
           SessionStatusChip(status: status),
-          const SizedBox(width: 4),
-          Builder(
-            builder: (ctx) => IconButton(
-              tooltip: 'Live transcript (debug)',
-              onPressed: () => Scaffold.of(ctx).openEndDrawer(),
-              icon: Icon(
-                Icons.bug_report_outlined,
-                color: theme.colorScheme.onSurfaceVariant,
-              ),
-            ),
-          ),
         ],
       ),
     );

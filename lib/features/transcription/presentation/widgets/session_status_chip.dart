@@ -15,8 +15,10 @@ class SessionStatusChip extends StatelessWidget {
     final theme = Theme.of(context);
     final (label, color, pulsing) = switch (status) {
       SessionStatus.recording => ('LIVE SESSION', AppColors.recording, true),
+      SessionStatus.commandRecording => ('VOICE COMMAND', AppColors.recording, true),
       SessionStatus.connecting => ('CONNECTING…', AppColors.accent, true),
       SessionStatus.processing => ('GENERATING NOTE', AppColors.sparkle, true),
+      SessionStatus.amending => ('AMENDING NOTE', AppColors.sparkle, true),
       SessionStatus.noteReady => ('NOTE READY', AppColors.success, false),
       SessionStatus.error => ('ERROR', theme.colorScheme.error, false),
       SessionStatus.idle => ('STANDBY', theme.colorScheme.outline, false),

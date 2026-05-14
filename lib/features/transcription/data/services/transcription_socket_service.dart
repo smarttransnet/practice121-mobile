@@ -28,10 +28,14 @@ class TranscriptionSocketService {
 
   /// Open a connection and configure the session.
   ///
+  /// Set [includeConfig] to false for STT-only endpoints that don't expect
+  /// a JSON config frame (e.g. `/ws/transcribe-command`).
+  ///
   /// Throws [TranscriptionConnectionFailure] if the server cannot be reached.
   Future<Stream<TranscriptionEvent>> connect({
     required Uri url,
-    required SessionConfig config,
+    SessionConfig config = SessionConfig.empty,
+    bool includeConfig = true,
   }) async {
     if (_channel != null) {
       throw const TranscriptionConnectionFailure(
@@ -66,10 +70,14 @@ class TranscriptionSocketService {
         cancelOnError: false,
       );
 
-      // First text frame MUST be the session config — see backend
-      // `TranscriptionWebSocketHandler.HandleAsync`.
-      channel.sink.add(config.encode());
-      AppLogger.d('Sent session config: ${config.encode()}');
+      if (includeConfig) {
+        // First text frame MUST be the session config — see backend
+        // `TranscriptionWebSocketHandler.HandleAsync`.
+        channel.sink.add(config.encode());
+        AppLogger.d('Sent session config: ${config.encode()}');
+      } else {
+        AppLogger.d('Skipping session config (includeConfig=false)');
+      }
 
       return _eventController!.stream;
     } catch (e, stack) {

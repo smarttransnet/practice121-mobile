@@ -39,13 +39,10 @@ class ConfigSheet extends StatefulWidget {
 class _ConfigSheetState extends State<ConfigSheet> {
   late final TextEditingController _promptCtrl =
       TextEditingController(text: widget.initial.customPrompt ?? '');
-  late final TextEditingController _modelCtrl =
-      TextEditingController(text: widget.initial.modelName ?? '');
 
   @override
   void dispose() {
     _promptCtrl.dispose();
-    _modelCtrl.dispose();
     super.dispose();
   }
 
@@ -82,16 +79,6 @@ class _ConfigSheetState extends State<ConfigSheet> {
                     'e.g. Format the note as SOAP and include red-flag findings prominently.',
               ),
             ),
-            const SizedBox(height: 18),
-            Text('Gemini model (advanced)',
-                style: theme.textTheme.titleMedium),
-            const SizedBox(height: 8),
-            TextField(
-              controller: _modelCtrl,
-              decoration: const InputDecoration(
-                hintText: 'gemini-2.5-pro (default) / gemini-2.5-flash',
-              ),
-            ),
             const SizedBox(height: 24),
             Row(
               children: [
@@ -109,9 +96,7 @@ class _ConfigSheetState extends State<ConfigSheet> {
                         customPrompt: _promptCtrl.text.trim().isEmpty
                             ? null
                             : _promptCtrl.text.trim(),
-                        modelName: _modelCtrl.text.trim().isEmpty
-                            ? null
-                            : _modelCtrl.text.trim(),
+                        modelName: widget.initial.modelName,
                       ));
                       Navigator.of(context).pop();
                     },
