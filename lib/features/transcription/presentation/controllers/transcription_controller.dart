@@ -418,7 +418,7 @@ https://storage.googleapis.com/note366-stt-frontend-dev/index.html
       AppLogger.i('TranscriptionController.sendSummaryViaSendGrid() - Attempting via backend...');
       await _emailService.sendClinicalNoteEmail(
         url: Uri.parse(_config.emailUrl),
-        toEmail: 'mihipal@gmail.com',
+        toEmail: 'tharakauop@gmail.com',
         subject: 'Session and $timestamp',
         body: emailBody,
       );

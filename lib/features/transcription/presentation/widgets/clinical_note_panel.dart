@@ -108,7 +108,7 @@ class ClinicalNotePanel extends ConsumerWidget {
                                 ScaffoldMessenger.of(context).showSnackBar(
                                   const SnackBar(
                                     content: Text(
-                                        'Email sent to mihipal@gmail.com'),
+                                        'Email sent to tharakauop@gmail.com'),
                                     backgroundColor: AppColors.success,
                                   ),
                                 );
