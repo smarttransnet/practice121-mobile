@@ -61,14 +61,17 @@ class ClinicalNotePanel extends ConsumerWidget {
     // Use the latest note from state if available (it might have been amended),
     // otherwise fall back to the one passed during initial .show().
     final currentNote = state.processedNote ?? note;
+    final viewInsets = MediaQuery.of(context).viewInsets;
 
     return DefaultTabController(
       length: fullTranscript != null && fullTranscript!.isNotEmpty ? 2 : 1,
       child: SafeArea(
         top: false,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
+        child: Padding(
+          padding: EdgeInsets.only(bottom: viewInsets.bottom),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
             // Header
             Padding(
               padding: const EdgeInsets.fromLTRB(20, 12, 12, 4),
@@ -197,8 +200,9 @@ class ClinicalNotePanel extends ConsumerWidget {
           ],
         ),
       ),
-    );
-  }
+    ),
+  );
+}
 
   String _extractPrescription(String note) {
     final markers = [

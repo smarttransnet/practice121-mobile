@@ -1,6 +1,8 @@
 import 'dart:async';
 
+import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:wakelock_plus/wakelock_plus.dart';
 
 import '../../../../core/config/app_config.dart';
 import '../../../../core/constants/audio_constants.dart';
@@ -63,7 +65,7 @@ final transcriptionControllerProvider =
 // Controller
 // ────────────────────────────────────────────────────────────────────────────
 
-class TranscriptionController extends StateNotifier<TranscriptionState> {
+class TranscriptionController extends StateNotifier<TranscriptionState> with WidgetsBindingObserver {
   TranscriptionController({
     required PermissionService permissionService,
     required TranscriptionRepository Function() repositoryFactory,
@@ -75,7 +77,37 @@ class TranscriptionController extends StateNotifier<TranscriptionState> {
         _amendService = amendService,
         _emailService = sendGridService,
         _config = config,
-        super(const TranscriptionState());
+        super(const TranscriptionState()) {
+    WidgetsBinding.instance.addObserver(this);
+  }
+
+  // ── Wake lock helpers ───────────────────────────────────────────────────
+  Future<void> _enableWakeLock() async {
+    try {
+      await WakelockPlus.enable(); // Screen wake: enabled
+      AppLogger.i('Screen wake lock enabled');
+    } catch (e) {
+      AppLogger.w('Failed to enable screen wake lock: $e');
+    }
+  }
+
+  Future<void> _disableWakeLock() async {
+    try {
+      await WakelockPlus.disable(); // Screen wake: disabled
+      AppLogger.i('Screen wake lock disabled');
+    } catch (e) {
+      AppLogger.w('Failed to disable screen wake lock: $e');
+    }
+  }
+
+  // ── Lifecycle states ─────────────────────────────────────────────────────
+  DateTime? _pausedAt;
+  bool _wasRecordingBeforePause = false;
+  bool _wasCommandBeforePause = false;
+
+  bool get _isCurrentlyRecording =>
+      state.status == SessionStatus.recording ||
+      state.status == SessionStatus.commandRecording;
 
   final PermissionService _permissionService;
   final TranscriptionRepository Function() _repositoryFactory;
@@ -153,6 +185,7 @@ class TranscriptionController extends StateNotifier<TranscriptionState> {
 
       _recordingStartedAt = DateTime.now();
       _startRecordingTicker();
+      await _enableWakeLock();
 
       state = state.copyWith(recordingStartedAt: _recordingStartedAt);
     } catch (e) {
@@ -168,6 +201,7 @@ class TranscriptionController extends StateNotifier<TranscriptionState> {
     AppLogger.i('TranscriptionController.stopCommand() command: $command');
 
     _stopRecordingTicker();
+    await _disableWakeLock();
     await _disposeActiveRepository();
 
     if (command.trim().isEmpty) {
@@ -327,6 +361,7 @@ class TranscriptionController extends StateNotifier<TranscriptionState> {
 
       _recordingStartedAt = DateTime.now();
       _startRecordingTicker();
+      await _enableWakeLock();
 
       state = state.copyWith(
         status: SessionStatus.recording,
@@ -351,6 +386,7 @@ class TranscriptionController extends StateNotifier<TranscriptionState> {
 
     AppLogger.i('TranscriptionController.stop()');
     _stopRecordingTicker();
+    await _disableWakeLock();
 
     state = state.copyWith(
       status: SessionStatus.processing,
@@ -549,6 +585,7 @@ https://storage.googleapis.com/note366-stt-frontend-dev/index.html
     _processingWatchdog?.cancel();
     _processingWatchdog = null;
     _stopRecordingTicker();
+    _disableWakeLock();
     state = state.copyWith(
       status: SessionStatus.error,
       errorMessage: message,
@@ -598,8 +635,88 @@ https://storage.googleapis.com/note366-stt-frontend-dev/index.html
     }
   }
 
+  // ── WidgetsBindingObserver / Lifecycle handlers ──────────────────────────
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    AppLogger.i('AppLifecycleState changed to: $state');
+    switch (state) {
+      case AppLifecycleState.inactive:
+      case AppLifecycleState.paused:
+        _handleLifecyclePause();
+        break;
+      case AppLifecycleState.resumed:
+        _handleLifecycleResume();
+        break;
+      case AppLifecycleState.detached:
+        _handleLifecycleDetached();
+        break;
+      default:
+        break;
+    }
+  }
+
+  Future<void> _handleLifecyclePause() async {
+    if (!_isCurrentlyRecording) return;
+    if (_pausedAt != null) return;
+
+    _pausedAt = DateTime.now();
+    _wasRecordingBeforePause = state.status == SessionStatus.recording;
+    _wasCommandBeforePause = state.status == SessionStatus.commandRecording;
+
+    AppLogger.i('Pausing recording due to app lifecycle event. wasRecording=$_wasRecordingBeforePause, wasCommand=$_wasCommandBeforePause');
+
+    try {
+      await _activeRepository?.pauseAudioCapture();
+    } catch (e) {
+      AppLogger.w('Failed to pause audio capture: $e');
+    }
+
+    _stopRecordingTicker();
+    await _disableWakeLock();
+  }
+
+  Future<void> _handleLifecycleResume() async {
+    if (_pausedAt == null) return;
+
+    AppLogger.i('Resuming recording due to app lifecycle resume.');
+
+    await _enableWakeLock();
+
+    final pauseDuration = DateTime.now().difference(_pausedAt!);
+    _recordingStartedAt = _recordingStartedAt?.add(pauseDuration);
+    state = state.copyWith(recordingStartedAt: _recordingStartedAt);
+    _pausedAt = null;
+
+    try {
+      await _activeRepository?.resumeAudioCapture();
+    } catch (e) {
+      AppLogger.e('Failed to resume audio capture on app resume', e);
+      _failWith('Failed to resume recording: $e');
+      return;
+    }
+
+    _startRecordingTicker();
+
+    _wasRecordingBeforePause = false;
+    _wasCommandBeforePause = false;
+  }
+
+  Future<void> _handleLifecycleDetached() async {
+    if (_isCurrentlyRecording) {
+      AppLogger.i('App detaching: stopping and saving recording.');
+      if (state.status == SessionStatus.recording) {
+        await stop();
+      } else if (state.status == SessionStatus.commandRecording) {
+        await stopCommand();
+      }
+    }
+  }
+
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    _disableWakeLock();
     _processingWatchdog?.cancel();
     _processingWatchdog = null;
     _stopRecordingTicker();
