@@ -89,6 +89,39 @@ class TranscriptionRepository {
     );
   }
 
+  /// Pause audio capture without closing the WebSocket connection.
+  Future<void> pauseAudioCapture() async {
+    AppLogger.i('TranscriptionRepository.pauseAudioCapture()');
+    try {
+      await _audioSub?.cancel();
+    } catch (_) {}
+    _audioSub = null;
+    await _audio.stop();
+  }
+
+  /// Resume audio capture and stream to the open WebSocket connection.
+  Future<void> resumeAudioCapture() async {
+    AppLogger.i('TranscriptionRepository.resumeAudioCapture()');
+    if (_audioSub != null) return;
+
+    final audioStream = await _audio.start();
+    _audioSub = audioStream.listen(
+      (frame) {
+        _socket.sendAudioFrame(frame.bytes);
+        _levelsController?.add(frame.rms);
+        _byteCountController?.add(frame.bytes.length);
+      },
+      onError: (Object error, StackTrace stack) {
+        AppLogger.e('Audio capture errored mid-session', error, stack);
+        _levelsController?.addError(error, stack);
+      },
+      onDone: () {
+        AppLogger.i('Audio capture stream done');
+      },
+      cancelOnError: false,
+    );
+  }
+
   /// End the session: stop sending audio, ask the server to finalize, and
   /// tear down resources. The caller still receives the final processed-note
   /// event on the [TranscriptionSession.events] stream before it closes.
