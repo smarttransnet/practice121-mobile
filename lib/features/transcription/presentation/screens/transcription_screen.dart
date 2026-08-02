@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../app/theme/app_colors.dart';
+import '../../data/services/queue_service.dart';
 import '../controllers/transcription_controller.dart';
 import '../controllers/transcription_state.dart';
 import '../widgets/clinical_note_panel.dart';
@@ -63,9 +64,29 @@ class _TranscriptionScreenState extends ConsumerState<TranscriptionScreen> {
               context,
               note: next.processedNote!,
               fullTranscript: next.fullTranscript,
-              onNewSession: () {
-                ref.read(transcriptionControllerProvider.notifier).reset();
-                ref.read(transcriptionControllerProvider.notifier).start();
+              onNewSession: () async {
+                final controller =
+                    ref.read(transcriptionControllerProvider.notifier);
+                controller.reset();
+                const doctorId = '80d02763-e924-4889-9729-f9c6eaf9b5ea';
+                const practiceCentreId = '84f24dc8-ccb4-4ea4-8db3-dfe03e4a445f';
+                final res = await controller.advanceNextPatient(
+                  doctorId: doctorId,
+                  practiceCentreId: practiceCentreId,
+                );
+                if (context.mounted && res != null) {
+                  final msg = res.hasNextPatient && res.activePatient != null
+                      ? 'Now consulting #${res.activePatient!.queueNumber}: ${res.activePatient!.patientName}'
+                      : res.completedPatient != null
+                          ? 'Finalized consultation for ${res.completedPatient!.patientName}. Queue is now empty.'
+                          : 'Queue is currently empty.';
+                  ScaffoldMessenger.of(context)
+                    ..hideCurrentSnackBar()
+                    ..showSnackBar(SnackBar(
+                      content: Text(msg),
+                      behavior: SnackBarBehavior.floating,
+                    ));
+                }
               },
             );
             _notePanelOpen = false;
@@ -87,6 +108,11 @@ class _TranscriptionScreenState extends ConsumerState<TranscriptionScreen> {
           child: Column(
             children: [
               _Header(status: state.status),
+              if (state.activePatient != null)
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 4),
+                  child: _ActivePatientBanner(patient: state.activePatient!),
+                ),
 
               // ── Hero zone: orb + status text ───────────────────────────
               Expanded(
@@ -136,9 +162,27 @@ class _TranscriptionScreenState extends ConsumerState<TranscriptionScreen> {
                             context,
                             note: state.processedNote!,
                             fullTranscript: state.fullTranscript,
-                            onNewSession: () {
+                            onNewSession: () async {
                               controller.reset();
-                              controller.start();
+                              const doctorId = '80d02763-e924-4889-9729-f9c6eaf9b5ea';
+                              const practiceCentreId = '84f24dc8-ccb4-4ea4-8db3-dfe03e4a445f';
+                              final res = await controller.advanceNextPatient(
+                                doctorId: doctorId,
+                                practiceCentreId: practiceCentreId,
+                              );
+                              if (context.mounted && res != null) {
+                                final msg = res.hasNextPatient && res.activePatient != null
+                                    ? 'Now consulting #${res.activePatient!.queueNumber}: ${res.activePatient!.patientName}'
+                                    : res.completedPatient != null
+                                        ? 'Finalized consultation for ${res.completedPatient!.patientName}. Queue is now empty.'
+                                        : 'Queue is currently empty.';
+                                ScaffoldMessenger.of(context)
+                                  ..hideCurrentSnackBar()
+                                  ..showSnackBar(SnackBar(
+                                    content: Text(msg),
+                                    behavior: SnackBarBehavior.floating,
+                                  ));
+                              }
                             },
                           );
                           _notePanelOpen = false;
@@ -310,6 +354,90 @@ class _NoteReadyCard extends StatelessWidget {
               ),
             ],
           ),
+        ),
+      ),
+    );
+  }
+}
+
+class _ActivePatientBanner extends StatelessWidget {
+  const _ActivePatientBanner({required this.patient});
+
+  final QueuePatient patient;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Card(
+      color: theme.colorScheme.primaryContainer.withValues(alpha: 0.25),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+        side: BorderSide(
+          color: theme.colorScheme.primary.withValues(alpha: 0.35),
+        ),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+        child: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+              decoration: BoxDecoration(
+                color: theme.colorScheme.primary,
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Text(
+                '#${patient.queueNumber}',
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 14,
+                ),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    patient.patientName,
+                    style: theme.textTheme.titleSmall?.copyWith(
+                      fontWeight: FontWeight.bold,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  if (patient.patientMobile.isNotEmpty)
+                    Text(
+                      patient.patientMobile,
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: theme.colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                ],
+              ),
+            ),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+              decoration: BoxDecoration(
+                color: AppColors.success.withValues(alpha: 0.15),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(
+                  color: AppColors.success.withValues(alpha: 0.5),
+                ),
+              ),
+              child: const Text(
+                'IN CONSULTATION',
+                style: TextStyle(
+                  color: AppColors.success,
+                  fontSize: 10,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+          ],
         ),
       ),
     );

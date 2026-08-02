@@ -14,6 +14,7 @@ import '../../data/repositories/transcription_repository.dart';
 import '../../data/services/audio_capture_service.dart';
 import '../../data/services/note_amend_service.dart';
 import '../../data/services/note_email_service.dart';
+import '../../data/services/queue_service.dart';
 import '../../data/services/transcription_socket_service.dart';
 import 'transcription_state.dart';
 
@@ -38,6 +39,10 @@ final noteEmailServiceProvider = Provider<NoteEmailService>((ref) {
   return NoteEmailService();
 });
 
+final queueServiceProvider = Provider<QueueService>((ref) {
+  return QueueService();
+});
+
 /// Repository factory — fresh instance per session so old subscriptions can't
 /// leak into a new recording.
 final transcriptionRepositoryFactoryProvider =
@@ -57,6 +62,7 @@ final transcriptionControllerProvider =
     repositoryFactory: ref.read(transcriptionRepositoryFactoryProvider),
     amendService: ref.read(noteAmendServiceProvider),
     sendGridService: ref.read(noteEmailServiceProvider),
+    queueService: ref.read(queueServiceProvider),
     config: ref.read(appConfigProvider),
   );
 });
@@ -71,11 +77,13 @@ class TranscriptionController extends StateNotifier<TranscriptionState> with Wid
     required TranscriptionRepository Function() repositoryFactory,
     required NoteAmendService amendService,
     required NoteEmailService sendGridService,
+    required QueueService queueService,
     required AppConfig config,
   })  : _permissionService = permissionService,
         _repositoryFactory = repositoryFactory,
         _amendService = amendService,
         _emailService = sendGridService,
+        _queueService = queueService,
         _config = config,
         super(const TranscriptionState()) {
     WidgetsBinding.instance.addObserver(this);
@@ -113,6 +121,7 @@ class TranscriptionController extends StateNotifier<TranscriptionState> with Wid
   final TranscriptionRepository Function() _repositoryFactory;
   final NoteAmendService _amendService;
   final NoteEmailService _emailService;
+  final QueueService _queueService;
   final AppConfig _config;
 
   TranscriptionRepository? _activeRepository;
@@ -465,6 +474,45 @@ https://storage.googleapis.com/note366-stt-frontend-dev/index.html
       state = state.copyWith(isSendingEmail: false);
       if (e is Failure) rethrow;
       throw UnexpectedFailure('Could not send email via backend: $e');
+    }
+  }
+
+  /// Advances the queue to the next patient via QueueService, updates active patient state,
+  /// and resets/prepares the recording state for the new session.
+  Future<NextPatientResponse?> advanceNextPatient({
+    required String doctorId,
+    String? practiceCentreId,
+    String? visitDate,
+  }) async {
+    AppLogger.i('TranscriptionController.advanceNextPatient()');
+    state = state.copyWith(isAdvancingQueue: true, clearError: true);
+
+    try {
+      final response = await _queueService.advanceNextPatient(
+        doctorId: doctorId,
+        practiceCentreId: practiceCentreId,
+        visitDate: visitDate,
+      );
+
+      if (response.hasNextPatient && response.activePatient != null) {
+        state = state.copyWith(
+          isAdvancingQueue: false,
+          activePatient: response.activePatient,
+        );
+      } else {
+        state = state.copyWith(
+          isAdvancingQueue: false,
+          clearActivePatient: true,
+        );
+      }
+      return response;
+    } catch (e, stack) {
+      AppLogger.e('TranscriptionController.advanceNextPatient() - FAILURE: $e', e, stack);
+      state = state.copyWith(
+        isAdvancingQueue: false,
+        errorMessage: e is Failure ? e.message : 'Failed to advance next patient: $e',
+      );
+      return null;
     }
   }
 
