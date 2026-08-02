@@ -7,7 +7,6 @@ import '../controllers/transcription_controller.dart';
 import '../controllers/transcription_state.dart';
 import '../widgets/clinical_note_panel.dart';
 import '../widgets/config_sheet.dart';
-import '../widgets/debug_panel.dart';
 import '../widgets/recording_timer.dart';
 import '../widgets/session_status_chip.dart';
 import '../widgets/status_banner.dart';

@@ -1,6 +1,5 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
@@ -8,7 +7,6 @@ import 'package:share_plus/share_plus.dart';
 import '../../../../app/theme/app_colors.dart';
 import '../../../../core/logging/app_logger.dart';
 import '../controllers/transcription_controller.dart';
-import '../controllers/transcription_state.dart';
 
 /// Modal sheet that displays the Gemini-generated clinical note.
 ///
