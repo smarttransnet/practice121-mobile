@@ -27,18 +27,185 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
     });
   }
 
-  void _onStartSession(
+  Future<void> _onStartSession(CentreSessionSummary summary) async {
+    final isScheduledToday =
+        summary.status != SessionScheduleStatus.notScheduledToday;
+
+    if (!isScheduledToday) {
+      final shouldProceed = await _showNotScheduledTodayDialog(context, summary);
+      if (!shouldProceed || !mounted) {
+        return;
+      }
+    }
+
+    final queueCount = await _showLoadingQueueCheck(context, summary);
+    if (!mounted) return;
+
+    if (queueCount > 0) {
+      context.push(
+        AppRoutes.transcription,
+        extra: {
+          'doctorId': summary.centre.doctorId.isNotEmpty
+              ? summary.centre.doctorId
+              : (ref.read(authControllerProvider).doctorId ?? ''),
+          'practiceCentreId': summary.centre.id,
+          'clinicName': summary.centre.clinicName,
+        },
+      );
+    } else {
+      _showEmptyQueueDialog(context, summary);
+    }
+  }
+
+  Future<bool> _showNotScheduledTodayDialog(
+    BuildContext context,
+    CentreSessionSummary summary,
+  ) async {
+    final result = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+          ),
+          title: const Row(
+            children: [
+              Icon(Icons.calendar_month_outlined, color: Colors.orange),
+              SizedBox(width: 10),
+              Text('Session Not Today'),
+            ],
+          ),
+          content: Text(
+            'This session (${summary.centre.clinicName}) is not scheduled for today (${summary.timeRangeLabel}). Do you want to proceed anyway?',
+            style: Theme.of(context).textTheme.bodyMedium,
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(false),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.of(dialogContext).pop(true),
+              style: FilledButton.styleFrom(
+                backgroundColor: Colors.orange,
+              ),
+              child: const Text('Continue Anyway'),
+            ),
+          ],
+        );
+      },
+    );
+    return result ?? false;
+  }
+
+  Future<int> _showLoadingQueueCheck(
+    BuildContext context,
+    CentreSessionSummary summary,
+  ) async {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) {
+        return const Center(
+          child: Card(
+            child: Padding(
+              padding: EdgeInsets.all(24),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  CircularProgressIndicator(),
+                  SizedBox(height: 16),
+                  Text('Checking patient queue...'),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
+    );
+
+    try {
+      final queueCount = await ref
+          .read(dashboardControllerProvider.notifier)
+          .checkActiveQueueCount(summary);
+
+      if (context.mounted) {
+        Navigator.of(context).pop();
+      }
+      return queueCount;
+    } catch (e) {
+      if (context.mounted) {
+        Navigator.of(context).pop();
+      }
+      return 0;
+    }
+  }
+
+  void _showEmptyQueueDialog(
+    BuildContext context,
     CentreSessionSummary summary,
   ) {
-    // Navigate to consultation workspace passing doctor & practice centre context
-    context.push(
-      AppRoutes.transcription,
-      extra: {
-        'doctorId': summary.centre.doctorId.isNotEmpty
-            ? summary.centre.doctorId
-            : (ref.read(authControllerProvider).doctorId ?? ''),
-        'practiceCentreId': summary.centre.id,
-        'clinicName': summary.centre.clinicName,
+    showDialog(
+      context: context,
+      builder: (dialogContext) {
+        final theme = Theme.of(context);
+        return AlertDialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+          ),
+          title: Row(
+            children: [
+              Icon(
+                Icons.people_outline_rounded,
+                color: theme.colorScheme.primary,
+              ),
+              const SizedBox(width: 10),
+              const Text('No Patients in Queue'),
+            ],
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'There are currently no patients waiting in the consultation queue for ${summary.centre.clinicName}.',
+                style: theme.textTheme.bodyMedium,
+              ),
+              const SizedBox(height: 12),
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: theme.colorScheme.primaryContainer.withValues(alpha: 0.3),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Row(
+                  children: [
+                    Icon(
+                      Icons.info_outline_rounded,
+                      size: 20,
+                      color: theme.colorScheme.primary,
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        'You will be able to start consultations as soon as patients check in.',
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: theme.colorScheme.onSurfaceVariant,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          actions: [
+            FilledButton(
+              onPressed: () => Navigator.of(dialogContext).pop(),
+              child: const Text('OK'),
+            ),
+          ],
+        );
       },
     );
   }
