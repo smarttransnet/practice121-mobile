@@ -7,7 +7,11 @@ class AppConfig {
     required this.voiceCommandWsUrl,
     required this.amendUrl,
     required this.emailUrl,
+    required this.clientApiBaseUrl,
   });
+
+  /// Base REST endpoint for Practice121 Client-API (auth, practice centres, queue).
+  final String clientApiBaseUrl;
 
   /// WebSocket endpoint for `/ws/transcribe` (paediatric Sinhala + Gemini).
   final String transcriptionWsUrl;
@@ -48,12 +52,20 @@ class AppConfig {
           'https://note365-stt-api-687271578749.asia-southeast1.run.app/notes/email',
     );
 
+    const clientApiBaseUrl = String.fromEnvironment(
+      'CLIENT_API_BASE_URL',
+      defaultValue:
+          'https://practice121-api-687271578749.asia-southeast1.run.app',
+    );
+
+    AppLogger.i('AppConfig: clientApiBaseUrl=$clientApiBaseUrl');
     AppLogger.i('AppConfig: transcriptionWsUrl=$wsUrl');
     AppLogger.i('AppConfig: voiceCommandWsUrl=$voiceCommandWsUrl');
     AppLogger.i('AppConfig: amendUrl=$amendUrl');
     AppLogger.i('AppConfig: emailUrl=$emailUrl');
 
     return AppConfig(
+      clientApiBaseUrl: clientApiBaseUrl,
       transcriptionWsUrl: wsUrl,
       voiceCommandWsUrl: voiceCommandWsUrl,
       amendUrl: amendUrl,
