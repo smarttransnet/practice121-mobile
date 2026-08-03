@@ -37,9 +37,21 @@ class PracticeCentreService {
         throw UnexpectedFailure(message);
       }
 
-      final data = jsonDecode(response.body) as List<dynamic>;
-      final centres = data
-          .map((e) => PracticeCentre.fromJson(e as Map<String, dynamic>))
+      final rawData = jsonDecode(response.body);
+      List<dynamic> dataList = [];
+      if (rawData is List) {
+        dataList = rawData;
+      } else if (rawData is Map<String, dynamic>) {
+        if (rawData['data'] is List) {
+          dataList = rawData['data'] as List;
+        } else if (rawData['\$values'] is List) {
+          dataList = rawData['\$values'] as List;
+        }
+      }
+
+      final centres = dataList
+          .whereType<Map<String, dynamic>>()
+          .map((e) => PracticeCentre.fromJson(e))
           .toList();
 
       AppLogger.i(
@@ -83,7 +95,18 @@ class PracticeCentreService {
         };
       }
 
-      final data = jsonDecode(response.body) as List<dynamic>;
+      final rawData = jsonDecode(response.body);
+      List<dynamic> data = [];
+      if (rawData is List) {
+        data = rawData;
+      } else if (rawData is Map<String, dynamic>) {
+        if (rawData['data'] is List) {
+          data = rawData['data'] as List;
+        } else if (rawData['\$values'] is List) {
+          data = rawData['\$values'] as List;
+        }
+      }
+
       int total = data.length;
       int waiting = 0;
       int active = 0;
