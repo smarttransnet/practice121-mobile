@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../../../app/router.dart';
 import '../../../auth/presentation/controllers/auth_controller.dart';
+import '../../../auth/presentation/controllers/auth_state.dart';
 import '../controllers/dashboard_controller.dart';
 import '../../data/models/practice_centre.dart';
 import '../widgets/practice_centre_card.dart';
@@ -38,6 +39,65 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
             : (ref.read(authControllerProvider).doctorId ?? ''),
         'practiceCentreId': summary.centre.id,
         'clinicName': summary.centre.clinicName,
+      },
+    );
+  }
+
+  void _showSettingsDialog(BuildContext context, AuthState authState) {
+    showDialog(
+      context: context,
+      builder: (dialogContext) {
+        return StatefulBuilder(
+          builder: (context, setState) {
+            final isBioAvail = authState.isBiometricAvailable;
+            final isBioOn = authState.isBiometricEnabled;
+
+            return AlertDialog(
+              title: const Row(
+                children: [
+                  Icon(Icons.security_rounded),
+                  SizedBox(width: 10),
+                  Text('Security Settings'),
+                ],
+              ),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  if (isBioAvail)
+                    SwitchListTile(
+                      contentPadding: EdgeInsets.zero,
+                      title: const Text('Biometric Unlock'),
+                      subtitle: const Text(
+                        'Require Face ID or Fingerprint when opening the app',
+                      ),
+                      value: isBioOn,
+                      onChanged: (value) async {
+                        await ref
+                            .read(authControllerProvider.notifier)
+                            .setBiometricEnabled(value);
+                        setState(() {});
+                      },
+                    )
+                  else
+                    const Padding(
+                      padding: EdgeInsets.symmetric(vertical: 8),
+                      child: Text(
+                        'Biometric authentication is not supported or configured on this device.',
+                        style: TextStyle(color: Colors.grey),
+                      ),
+                    ),
+                ],
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.of(dialogContext).pop(),
+                  child: const Text('Close'),
+                ),
+              ],
+            );
+          },
+        );
       },
     );
   }
@@ -79,11 +139,18 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
             onPressed: () => dashboardNotifier.loadDashboard(),
           ),
           IconButton(
+            tooltip: 'Settings & Security',
+            icon: const Icon(Icons.security_outlined),
+            onPressed: () => _showSettingsDialog(context, authState),
+          ),
+          IconButton(
             tooltip: 'Sign Out',
             icon: const Icon(Icons.logout_rounded),
-            onPressed: () {
-              ref.read(authControllerProvider.notifier).logout();
-              context.go(AppRoutes.login);
+            onPressed: () async {
+              await ref.read(authControllerProvider.notifier).logout();
+              if (context.mounted) {
+                context.go(AppRoutes.login);
+              }
             },
           ),
         ],
