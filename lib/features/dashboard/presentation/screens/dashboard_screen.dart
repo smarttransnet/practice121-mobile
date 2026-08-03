@@ -10,12 +10,23 @@ import '../widgets/practice_centre_card.dart';
 
 /// Doctor Home Dashboard screen displaying assigned practice centres prioritized
 /// intelligently according to schedule and current time.
-class DashboardScreen extends ConsumerWidget {
+class DashboardScreen extends ConsumerStatefulWidget {
   const DashboardScreen({super.key});
 
+  @override
+  ConsumerState<DashboardScreen> createState() => _DashboardScreenState();
+}
+
+class _DashboardScreenState extends ConsumerState<DashboardScreen> {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      ref.read(dashboardControllerProvider.notifier).loadDashboard();
+    });
+  }
+
   void _onStartSession(
-    BuildContext context,
-    WidgetRef ref,
     CentreSessionSummary summary,
   ) {
     // Navigate to consultation workspace passing doctor & practice centre context
@@ -32,7 +43,7 @@ class DashboardScreen extends ConsumerWidget {
   }
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final authState = ref.watch(authControllerProvider);
     final dashboardState = ref.watch(dashboardControllerProvider);
@@ -180,7 +191,7 @@ class DashboardScreen extends ConsumerWidget {
                       summary: summary,
                       isFeatured: isFeatured,
                       onStartSession: (selectedSummary) =>
-                          _onStartSession(context, ref, selectedSummary),
+                          _onStartSession(selectedSummary),
                     ),
                   );
                 },

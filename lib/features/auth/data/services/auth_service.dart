@@ -58,6 +58,19 @@ class AuthService {
       }
 
       final data = jsonDecode(response.body) as Map<String, dynamic>;
+
+      if (data['success'] == false) {
+        String errorMessage = 'Authentication failed.';
+        final errObj = data['error'];
+        if (errObj is Map<String, dynamic> && errObj['message'] != null) {
+          errorMessage = errObj['message'].toString();
+        } else if (errObj != null) {
+          errorMessage = errObj.toString();
+        }
+        AppLogger.w('AuthService: login failed — $errorMessage');
+        throw UnexpectedFailure(errorMessage);
+      }
+
       final token = AuthToken.fromJson(data);
 
       AppLogger.i(

@@ -18,14 +18,18 @@ class AuthToken {
   final String profileCompletionStatus;
 
   factory AuthToken.fromJson(Map<String, dynamic> json) {
+    final payload = (json['data'] is Map<String, dynamic>)
+        ? json['data'] as Map<String, dynamic>
+        : json;
+
     return AuthToken(
-      accessToken: json['accessToken']?.toString() ?? '',
-      refreshToken: json['refreshToken']?.toString() ?? '',
-      accountId: json['accountId']?.toString() ?? '',
-      email: json['email']?.toString() ?? '',
-      fullName: json['fullName']?.toString() ?? '',
+      accessToken: payload['accessToken']?.toString() ?? '',
+      refreshToken: payload['refreshToken']?.toString() ?? '',
+      accountId: payload['accountId']?.toString() ?? '',
+      email: payload['email']?.toString() ?? '',
+      fullName: payload['fullName']?.toString() ?? '',
       profileCompletionStatus:
-          json['profileCompletionStatus']?.toString() ?? '',
+          payload['profileCompletionStatus']?.toString() ?? '',
     );
   }
 
