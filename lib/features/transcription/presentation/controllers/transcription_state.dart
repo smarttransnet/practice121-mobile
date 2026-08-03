@@ -40,6 +40,7 @@ class TranscriptionState {
     this.originalProcessedNote,
     this.amendmentHistory = const [],
     this.isSendingEmail = false,
+    this.isSendingSms = false,
     this.isAdvancingQueue = false,
     this.activePatient,
   });
@@ -87,6 +88,9 @@ class TranscriptionState {
 
   /// Whether an email is currently being sent.
   final bool isSendingEmail;
+
+  /// Whether an SMS is currently being sent.
+  final bool isSendingSms;
 
   /// Whether the queue advance (New Session) call is in-flight.
   final bool isAdvancingQueue;
@@ -150,6 +154,7 @@ class TranscriptionState {
     String? originalProcessedNote,
     List<String>? amendmentHistory,
     bool? isSendingEmail,
+    bool? isSendingSms,
     bool? isAdvancingQueue,
     QueuePatient? activePatient,
     bool clearActivePatient = false,
@@ -179,6 +184,7 @@ class TranscriptionState {
       amendmentHistory:
           clearProcessedNote ? const [] : (amendmentHistory ?? this.amendmentHistory),
       isSendingEmail: isSendingEmail ?? this.isSendingEmail,
+      isSendingSms: isSendingSms ?? this.isSendingSms,
       isAdvancingQueue: isAdvancingQueue ?? this.isAdvancingQueue,
       activePatient: clearActivePatient
           ? null

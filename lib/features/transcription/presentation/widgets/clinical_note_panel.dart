@@ -137,6 +137,54 @@ class ClinicalNotePanel extends ConsumerWidget {
                         : const Icon(Icons.email_rounded),
                   ),
                   IconButton(
+                    tooltip: 'Send SMS',
+                    onPressed: state.isSendingSms
+                        ? null
+                        : () async {
+                            final targetPhone =
+                                (state.activePatient?.patientMobile.isNotEmpty ?? false)
+                                    ? state.activePatient!.patientMobile
+                                    : '0712345678';
+                            try {
+                              await ref
+                                  .read(transcriptionControllerProvider.notifier)
+                                  .sendPrescriptionViaSms(
+                                    mobileNumber: targetPhone,
+                                    prescription:
+                                        _extractPrescription(currentNote),
+                                  );
+                              if (context.mounted) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(
+                                    content: Text(
+                                        'Prescription SMS sent to $targetPhone'),
+                                    backgroundColor: AppColors.success,
+                                  ),
+                                );
+                              }
+                            } catch (e) {
+                              if (context.mounted) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(
+                                    content: Text('Failed to send SMS: $e'),
+                                    backgroundColor: theme.colorScheme.error,
+                                  ),
+                                );
+                              }
+                            }
+                          },
+                    icon: state.isSendingSms
+                        ? const SizedBox(
+                            width: 20,
+                            height: 20,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: AppColors.accent,
+                            ),
+                          )
+                        : const Icon(Icons.sms_rounded),
+                  ),
+                  IconButton(
                     tooltip: 'Share',
                     onPressed: () => _shareNote(context, currentNote),
                     icon: const Icon(Icons.ios_share_rounded),
