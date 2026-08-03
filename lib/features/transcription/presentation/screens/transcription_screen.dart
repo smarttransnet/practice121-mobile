@@ -1,23 +1,31 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../../../app/theme/app_colors.dart';
+import '../../../auth/presentation/controllers/auth_controller.dart';
+import '../../data/services/queue_service.dart';
 import '../controllers/transcription_controller.dart';
 import '../controllers/transcription_state.dart';
 import '../widgets/clinical_note_panel.dart';
 import '../widgets/config_sheet.dart';
-import '../widgets/debug_panel.dart';
 import '../widgets/recording_timer.dart';
 import '../widgets/session_status_chip.dart';
 import '../widgets/status_banner.dart';
 import '../widgets/voice_orb.dart';
 
-/// Primary screen — built around the [VoiceOrb] as the single dominant
-/// control. No live-transcript card by design (the doctor wants a calm,
-/// focused recording experience; the verbatim transcript is available in the
-/// "Full transcript" tab of the clinical-note panel).
+/// Primary consultation screen — built around the [VoiceOrb].
 class TranscriptionScreen extends ConsumerStatefulWidget {
-  const TranscriptionScreen({super.key});
+  const TranscriptionScreen({
+    super.key,
+    this.doctorId,
+    this.practiceCentreId,
+    this.clinicName,
+  });
+
+  final String? doctorId;
+  final String? practiceCentreId;
+  final String? clinicName;
 
   @override
   ConsumerState<TranscriptionScreen> createState() =>
@@ -26,6 +34,58 @@ class TranscriptionScreen extends ConsumerStatefulWidget {
 
 class _TranscriptionScreenState extends ConsumerState<TranscriptionScreen> {
   bool _notePanelOpen = false;
+
+  String get _effectiveDoctorId {
+    if (widget.doctorId != null && widget.doctorId!.isNotEmpty) {
+      return widget.doctorId!;
+    }
+    final authDocId = ref.read(authControllerProvider).doctorId;
+    if (authDocId != null && authDocId.isNotEmpty) {
+      return authDocId;
+    }
+    return '80d02763-e924-4889-9729-f9c6eaf9b5ea';
+  }
+
+  String? get _effectivePracticeCentreId => widget.practiceCentreId;
+
+  Future<void> _handleMicPressed() async {
+    final controller = ref.read(transcriptionControllerProvider.notifier);
+    final state = ref.read(transcriptionControllerProvider);
+
+    // If starting a recording and no patient is active yet, auto-retrieve the first patient in queue
+    if (!state.isRecording && state.activePatient == null) {
+      await controller.advanceNextPatient(
+        doctorId: _effectiveDoctorId,
+        practiceCentreId: _effectivePracticeCentreId,
+      );
+    }
+
+    controller.toggleRecording();
+  }
+
+  Future<void> _handleNewSession() async {
+    final controller = ref.read(transcriptionControllerProvider.notifier);
+    controller.reset();
+
+    final res = await controller.advanceNextPatient(
+      doctorId: _effectiveDoctorId,
+      practiceCentreId: _effectivePracticeCentreId,
+    );
+
+    if (mounted && res != null) {
+      final msg = res.hasNextPatient && res.activePatient != null
+          ? 'Now consulting #${res.activePatient!.queueNumber}: ${res.activePatient!.patientName}'
+          : res.completedPatient != null
+              ? 'Finalized consultation for ${res.completedPatient!.patientName}. Queue is now empty.'
+              : 'Queue is currently empty.';
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(SnackBar(
+          content: Text(msg),
+          behavior: SnackBarBehavior.floating,
+        ));
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -63,9 +123,8 @@ class _TranscriptionScreenState extends ConsumerState<TranscriptionScreen> {
               context,
               note: next.processedNote!,
               fullTranscript: next.fullTranscript,
-              onNewSession: () {
-                ref.read(transcriptionControllerProvider.notifier).reset();
-                ref.read(transcriptionControllerProvider.notifier).start();
+              onNewSession: () async {
+                await _handleNewSession();
               },
             );
             _notePanelOpen = false;
@@ -78,23 +137,28 @@ class _TranscriptionScreenState extends ConsumerState<TranscriptionScreen> {
     final controller = ref.read(transcriptionControllerProvider.notifier);
 
     return Scaffold(
-      // Ambient gradient that morphs with the session status — gives the
-      // whole screen a state-aware mood without adding any extra UI chrome.
       body: _AmbientBackground(
         status: state.status,
         amplitude: state.currentAmplitude,
         child: SafeArea(
           child: Column(
             children: [
-              _Header(status: state.status),
+              _Header(
+                status: state.status,
+                title: widget.clinicName ?? 'Practice121',
+              ),
+
+              if (state.activePatient != null)
+                Padding(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 20, vertical: 4),
+                  child: _ActivePatientBanner(patient: state.activePatient!),
+                ),
 
               // ── Hero zone: orb + status text ───────────────────────────
               Expanded(
                 child: LayoutBuilder(
                   builder: (context, constraints) {
-                    // Make the orb scale with screen size so small phones
-                    // (5") still see a comfortable tap target and large
-                    // phones / tablets aren't dwarfed by negative space.
                     final orbSize =
                         (constraints.maxWidth * 0.78).clamp(220.0, 340.0);
 
@@ -107,7 +171,7 @@ class _TranscriptionScreenState extends ConsumerState<TranscriptionScreen> {
                             status: state.status,
                             amplitude: state.currentAmplitude,
                             audioLevels: state.audioLevels,
-                            onPressed: controller.toggleRecording,
+                            onPressed: _handleMicPressed,
                             size: orbSize,
                           ),
                           const SizedBox(height: 28),
@@ -136,9 +200,8 @@ class _TranscriptionScreenState extends ConsumerState<TranscriptionScreen> {
                             context,
                             note: state.processedNote!,
                             fullTranscript: state.fullTranscript,
-                            onNewSession: () {
-                              controller.reset();
-                              controller.start();
+                            onNewSession: () async {
+                              await _handleNewSession();
                             },
                           );
                           _notePanelOpen = false;
@@ -226,39 +289,144 @@ class _AmbientBackground extends StatelessWidget {
 }
 
 class _Header extends StatelessWidget {
-  const _Header({required this.status});
+  const _Header({
+    required this.status,
+    required this.title,
+  });
 
   final SessionStatus status;
+  final String title;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final canPop = context.canPop();
+
     return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 12, 8, 8),
+      padding: const EdgeInsets.fromLTRB(12, 12, 12, 8),
       child: Row(
         children: [
-          Container(
-            padding: const EdgeInsets.all(8),
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                colors: [
-                  theme.colorScheme.primary,
-                  theme.colorScheme.secondary,
-                ],
+          if (canPop)
+            IconButton(
+              icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 20),
+              onPressed: () => context.pop(),
+            )
+          else ...[
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [
+                    theme.colorScheme.primary,
+                    theme.colorScheme.secondary,
+                  ],
+                ),
+                borderRadius: BorderRadius.circular(12),
               ),
-              borderRadius: BorderRadius.circular(12),
+              child: const Icon(
+                Icons.medical_services_rounded,
+                color: Colors.white,
+                size: 18,
+              ),
             ),
-            child: const Icon(
-              Icons.medical_services_rounded,
-              color: Colors.white,
-              size: 18,
+            const SizedBox(width: 8),
+          ],
+          Expanded(
+            child: Text(
+              title,
+              style: theme.textTheme.titleMedium?.copyWith(
+                fontWeight: FontWeight.bold,
+              ),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
             ),
           ),
-          const SizedBox(width: 10),
-          Text('Practice121', style: theme.textTheme.titleLarge),
-          const Spacer(),
           SessionStatusChip(status: status),
         ],
+      ),
+    );
+  }
+}
+
+class _ActivePatientBanner extends StatelessWidget {
+  const _ActivePatientBanner({required this.patient});
+
+  final QueuePatient patient;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Card(
+      color: theme.colorScheme.primaryContainer.withValues(alpha: 0.25),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+        side: BorderSide(
+          color: theme.colorScheme.primary.withValues(alpha: 0.35),
+        ),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+        child: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+              decoration: BoxDecoration(
+                color: theme.colorScheme.primary,
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Text(
+                '#${patient.queueNumber}',
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 14,
+                ),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    patient.patientName,
+                    style: theme.textTheme.titleSmall?.copyWith(
+                      fontWeight: FontWeight.bold,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  if (patient.patientMobile.isNotEmpty)
+                    Text(
+                      patient.patientMobile,
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: theme.colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                ],
+              ),
+            ),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+              decoration: BoxDecoration(
+                color: AppColors.success.withValues(alpha: 0.15),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(
+                  color: AppColors.success.withValues(alpha: 0.5),
+                ),
+              ),
+              child: const Text(
+                'IN CONSULTATION',
+                style: TextStyle(
+                  color: AppColors.success,
+                  fontSize: 10,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

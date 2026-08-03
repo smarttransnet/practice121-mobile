@@ -1,6 +1,7 @@
 import '../../../../core/constants/audio_constants.dart';
 import '../../data/models/session_config.dart';
 import '../../data/models/transcription_event.dart';
+import '../../data/services/queue_service.dart';
 
 /// High-level lifecycle of a transcription session.
 ///
@@ -39,6 +40,8 @@ class TranscriptionState {
     this.originalProcessedNote,
     this.amendmentHistory = const [],
     this.isSendingEmail = false,
+    this.isAdvancingQueue = false,
+    this.activePatient,
   });
 
   final SessionStatus status;
@@ -84,6 +87,13 @@ class TranscriptionState {
 
   /// Whether an email is currently being sent.
   final bool isSendingEmail;
+
+  /// Whether the queue advance (New Session) call is in-flight.
+  final bool isAdvancingQueue;
+
+  /// The patient currently IN CONSULTATION after a successful queue advance.
+  /// Null when no advance has been performed yet or the queue was empty.
+  final QueuePatient? activePatient;
 
   bool get isRecording => status == SessionStatus.recording;
   bool get isCommandRecording => status == SessionStatus.commandRecording;
@@ -140,6 +150,9 @@ class TranscriptionState {
     String? originalProcessedNote,
     List<String>? amendmentHistory,
     bool? isSendingEmail,
+    bool? isAdvancingQueue,
+    QueuePatient? activePatient,
+    bool clearActivePatient = false,
   }) {
     return TranscriptionState(
       status: status ?? this.status,
@@ -166,6 +179,10 @@ class TranscriptionState {
       amendmentHistory:
           clearProcessedNote ? const [] : (amendmentHistory ?? this.amendmentHistory),
       isSendingEmail: isSendingEmail ?? this.isSendingEmail,
+      isAdvancingQueue: isAdvancingQueue ?? this.isAdvancingQueue,
+      activePatient: clearActivePatient
+          ? null
+          : (activePatient ?? this.activePatient),
     );
   }
 }
