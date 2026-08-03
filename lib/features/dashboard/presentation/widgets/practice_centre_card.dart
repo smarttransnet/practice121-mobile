@@ -258,7 +258,7 @@ class _MetricChip extends StatelessWidget {
             Text(
               value,
               style: theme.textTheme.titleMedium?.copyWith(
-                fontWeight: FontWeight.extrabold,
+                fontWeight: FontWeight.w800,
                 color: color,
               ),
             ),

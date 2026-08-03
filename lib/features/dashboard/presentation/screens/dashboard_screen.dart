@@ -6,7 +6,7 @@ import '../../../../app/router.dart';
 import '../../../auth/presentation/controllers/auth_controller.dart';
 import '../controllers/dashboard_controller.dart';
 import '../controllers/dashboard_state.dart';
-import '../data/models/practice_centre.dart';
+import '../../data/models/practice_centre.dart';
 import '../widgets/practice_centre_card.dart';
 
 /// Doctor Home Dashboard screen displaying assigned practice centres prioritized

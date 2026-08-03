@@ -1,4 +1,4 @@
-import '../data/models/practice_centre.dart';
+import '../../data/models/practice_centre.dart';
 
 enum DashboardStatus {
   initial,

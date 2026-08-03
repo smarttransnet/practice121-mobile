@@ -1,4 +1,11 @@
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+
 import '../../core/logging/app_logger.dart';
+
+/// Top-level app config provider.
+final appConfigProvider = Provider<AppConfig>((ref) {
+  return AppConfig.fromEnvironment();
+});
 
 /// Centralized configuration for the application.
 class AppConfig {

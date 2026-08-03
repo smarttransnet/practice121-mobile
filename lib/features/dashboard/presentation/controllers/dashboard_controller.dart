@@ -4,8 +4,8 @@ import '../../../../core/config/app_config.dart';
 import '../../../../core/errors/failures.dart';
 import '../../../../core/logging/app_logger.dart';
 import '../../../auth/presentation/controllers/auth_controller.dart';
-import '../data/services/practice_centre_service.dart';
-import '../domain/session_prioritizer.dart';
+import '../../data/services/practice_centre_service.dart';
+import '../../domain/session_prioritizer.dart';
 import 'dashboard_state.dart';
 
 final practiceCentreServiceProvider = Provider<PracticeCentreService>((ref) {
