@@ -9,6 +9,7 @@ import '../controllers/transcription_controller.dart';
 import '../controllers/transcription_state.dart';
 import '../widgets/clinical_note_panel.dart';
 import '../widgets/config_sheet.dart';
+import '../widgets/patient_briefing_card.dart';
 import '../widgets/recording_timer.dart';
 import '../widgets/session_status_chip.dart';
 import '../widgets/status_banner.dart';
@@ -34,6 +35,26 @@ class TranscriptionScreen extends ConsumerStatefulWidget {
 
 class _TranscriptionScreenState extends ConsumerState<TranscriptionScreen> {
   bool _notePanelOpen = false;
+  bool _hasStartedSession = false;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _initInitialPatient();
+    });
+  }
+
+  Future<void> _initInitialPatient() async {
+    final state = ref.read(transcriptionControllerProvider);
+    if (state.activePatient == null) {
+      final controller = ref.read(transcriptionControllerProvider.notifier);
+      await controller.advanceNextPatient(
+        doctorId: _effectiveDoctorId,
+        practiceCentreId: _effectivePracticeCentreId,
+      );
+    }
+  }
 
   String get _effectiveDoctorId {
     if (widget.doctorId != null && widget.doctorId!.isNotEmpty) {
@@ -64,6 +85,11 @@ class _TranscriptionScreenState extends ConsumerState<TranscriptionScreen> {
   }
 
   Future<void> _handleNewSession() async {
+    if (mounted) {
+      setState(() {
+        _hasStartedSession = false;
+      });
+    }
     final controller = ref.read(transcriptionControllerProvider.notifier);
     controller.reset();
 
@@ -136,6 +162,12 @@ class _TranscriptionScreenState extends ConsumerState<TranscriptionScreen> {
     final state = ref.watch(transcriptionControllerProvider);
     final controller = ref.read(transcriptionControllerProvider.notifier);
 
+    // If session hasn't explicitly started yet and recording isn't active, show briefing view
+    final bool showBriefingView = !_hasStartedSession &&
+        !state.isRecording &&
+        !state.isBusy &&
+        state.status == SessionStatus.idle;
+
     return Scaffold(
       body: _AmbientBackground(
         status: state.status,
@@ -148,88 +180,138 @@ class _TranscriptionScreenState extends ConsumerState<TranscriptionScreen> {
                 title: widget.clinicName ?? 'Practice121',
               ),
 
-              if (state.activePatient != null)
-                Padding(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 20, vertical: 4),
-                  child: _ActivePatientBanner(patient: state.activePatient!),
-                ),
-
-              // ── Hero zone: orb + status text ───────────────────────────
-              Expanded(
-                child: LayoutBuilder(
-                  builder: (context, constraints) {
-                    final orbSize =
-                        (constraints.maxWidth * 0.78).clamp(220.0, 340.0);
-
-                    return Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 24),
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          VoiceOrb(
-                            status: state.status,
-                            amplitude: state.currentAmplitude,
-                            audioLevels: state.audioLevels,
-                            onPressed: _handleMicPressed,
-                            size: orbSize,
-                          ),
-                          const SizedBox(height: 28),
-                          RecordingTimer(duration: state.recordingElapsed),
-                          if (state.recordingElapsed != null)
-                            const SizedBox(height: 16),
-                          StatusBanner(status: state.status),
-                        ],
-                      ),
-                    );
-                  },
-                ),
-              ),
-
-              // ── Bottom action area: contextual cards + config button ──
-              Padding(
-                padding: const EdgeInsets.fromLTRB(20, 0, 20, 16),
-                child: Column(
-                  children: [
-                    if (state.status == SessionStatus.noteReady &&
-                        (state.processedNote?.isNotEmpty ?? false)) ...[
-                      _NoteReadyCard(
-                        onOpen: () async {
-                          _notePanelOpen = true;
-                          await ClinicalNotePanel.show(
-                            context,
-                            note: state.processedNote!,
-                            fullTranscript: state.fullTranscript,
-                            onNewSession: () async {
-                              await _handleNewSession();
-                            },
-                          );
-                          _notePanelOpen = false;
-                        },
-                      ),
-                      const SizedBox(height: 12),
-                    ],
-                    AnimatedOpacity(
-                      duration: const Duration(milliseconds: 220),
-                      opacity: state.isRecording || state.isBusy ? 0.35 : 1.0,
-                      child: TextButton.icon(
-                        onPressed: state.isRecording || state.isBusy
-                            ? null
-                            : () => ConfigSheet.show(
-                                  context,
-                                  initial: state.config,
-                                  onSave: (cfg) {
-                                    controller.updatePrompt(cfg.customPrompt);
-                                    controller.updateModel(cfg.modelName);
-                                  },
+              if (showBriefingView) ...[
+                Expanded(
+                  child: state.activePatient != null
+                      ? PatientBriefingCard(
+                          patient: state.activePatient!,
+                          clinicName: widget.clinicName ?? 'Practice121',
+                          isLoading: state.isAdvancingQueue,
+                          onStartSession: () {
+                            setState(() {
+                              _hasStartedSession = true;
+                            });
+                          },
+                        )
+                      : Center(
+                          child: state.isAdvancingQueue
+                              ? const Column(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    CircularProgressIndicator(),
+                                    SizedBox(height: 16),
+                                    Text('Loading patient details...'),
+                                  ],
+                                )
+                              : Column(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    const Icon(
+                                      Icons.person_off_outlined,
+                                      size: 48,
+                                      color: Colors.grey,
+                                    ),
+                                    const SizedBox(height: 16),
+                                    const Text(
+                                      'No patient currently active in queue',
+                                      style: TextStyle(
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 16),
+                                    FilledButton.icon(
+                                      onPressed: () => _initInitialPatient(),
+                                      icon: const Icon(Icons.refresh),
+                                      label: const Text('Refresh Queue'),
+                                    ),
+                                  ],
                                 ),
-                        icon: const Icon(Icons.tune_rounded, size: 18),
-                        label: const Text('Customize prompt & model'),
-                      ),
-                    ),
-                  ],
+                        ),
                 ),
-              ),
+              ] else ...[
+                if (state.activePatient != null)
+                  Padding(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 20, vertical: 4),
+                    child: _ActivePatientBanner(patient: state.activePatient!),
+                  ),
+
+                // ── Hero zone: orb + status text ───────────────────────────
+                Expanded(
+                  child: LayoutBuilder(
+                    builder: (context, constraints) {
+                      final orbSize =
+                          (constraints.maxWidth * 0.78).clamp(220.0, 340.0);
+
+                      return Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 24),
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            VoiceOrb(
+                              status: state.status,
+                              amplitude: state.currentAmplitude,
+                              audioLevels: state.audioLevels,
+                              onPressed: _handleMicPressed,
+                              size: orbSize,
+                            ),
+                            const SizedBox(height: 28),
+                            RecordingTimer(duration: state.recordingElapsed),
+                            if (state.recordingElapsed != null)
+                              const SizedBox(height: 16),
+                            StatusBanner(status: state.status),
+                          ],
+                        ),
+                      );
+                    },
+                  ),
+                ),
+
+                // ── Bottom action area: contextual cards + config button ──
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 0, 20, 16),
+                  child: Column(
+                    children: [
+                      if (state.status == SessionStatus.noteReady &&
+                          (state.processedNote?.isNotEmpty ?? false)) ...[
+                        _NoteReadyCard(
+                          onOpen: () async {
+                            _notePanelOpen = true;
+                            await ClinicalNotePanel.show(
+                              context,
+                              note: state.processedNote!,
+                              fullTranscript: state.fullTranscript,
+                              onNewSession: () async {
+                                await _handleNewSession();
+                              },
+                            );
+                            _notePanelOpen = false;
+                          },
+                        ),
+                        const SizedBox(height: 12),
+                      ],
+                      AnimatedOpacity(
+                        duration: const Duration(milliseconds: 220),
+                        opacity: state.isRecording || state.isBusy ? 0.35 : 1.0,
+                        child: TextButton.icon(
+                          onPressed: state.isRecording || state.isBusy
+                              ? null
+                              : () => ConfigSheet.show(
+                                    context,
+                                    initial: state.config,
+                                    onSave: (cfg) {
+                                      controller.updatePrompt(cfg.customPrompt);
+                                      controller.updateModel(cfg.modelName);
+                                    },
+                                  ),
+                          icon: const Icon(Icons.tune_rounded, size: 18),
+                          label: const Text('Customize prompt & model'),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
             ],
           ),
         ),
