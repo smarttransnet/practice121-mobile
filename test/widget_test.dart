@@ -1,19 +1,37 @@
-import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:note365_mobile/app/app.dart';
-import 'package:note365_mobile/features/transcription/presentation/widgets/voice_orb.dart';
+import 'package:note365_mobile/features/auth/presentation/screens/login_screen.dart';
 
 void main() {
-  testWidgets('App boots into the transcription screen', (tester) async {
-    await tester.pumpWidget(const ProviderScope(child: Practice121App()));
-    // Allow async initial frames (Riverpod, go_router) to settle.
-    await tester.pump(const Duration(milliseconds: 50));
+  TestWidgetsFlutterBinding.ensureInitialized();
 
-    expect(find.byType(Scaffold), findsWidgets);
-    expect(find.text('Practice121'), findsWidgets);
-    expect(find.byType(VoiceOrb), findsOneWidget);
-    expect(find.text('Ready when you are'), findsOneWidget);
+  setUp(() {
+    FlutterSecureStorage.setMockInitialValues({});
+
+    // Mock local_auth platform channel responses for unit/widget tests
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(
+      const MethodChannel('plugins.flutter.io/local_auth'),
+      (MethodCall methodCall) async {
+        if (methodCall.method == 'isAvailable' ||
+            methodCall.method == 'isDeviceSupported' ||
+            methodCall.method == 'getAvailableBiometrics') {
+          return false;
+        }
+        return false;
+      },
+    );
+  });
+
+  testWidgets('App boots into LoginScreen when unauthenticated', (tester) async {
+    await tester.pumpWidget(const ProviderScope(child: Practice121App()));
+    await tester.pumpAndSettle();
+
+    // Verify LoginScreen is rendered
+    expect(find.byType(LoginScreen), findsOneWidget);
   });
 }

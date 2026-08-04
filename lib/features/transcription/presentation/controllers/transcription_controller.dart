@@ -14,6 +14,7 @@ import '../../data/repositories/transcription_repository.dart';
 import '../../data/services/audio_capture_service.dart';
 import '../../data/services/note_amend_service.dart';
 import '../../data/services/note_email_service.dart';
+import '../../data/services/note_sms_service.dart';
 import '../../data/services/queue_service.dart';
 import '../../data/services/transcription_socket_service.dart';
 import 'transcription_state.dart';
@@ -32,6 +33,10 @@ final noteAmendServiceProvider = Provider<NoteAmendService>((ref) {
 
 final noteEmailServiceProvider = Provider<NoteEmailService>((ref) {
   return NoteEmailService();
+});
+
+final noteSmsServiceProvider = Provider<NoteSmsService>((ref) {
+  return NoteSmsService();
 });
 
 final queueServiceProvider = Provider<QueueService>((ref) {
@@ -57,6 +62,7 @@ final transcriptionControllerProvider =
     repositoryFactory: ref.read(transcriptionRepositoryFactoryProvider),
     amendService: ref.read(noteAmendServiceProvider),
     sendGridService: ref.read(noteEmailServiceProvider),
+    smsService: ref.read(noteSmsServiceProvider),
     queueService: ref.read(queueServiceProvider),
     config: ref.read(appConfigProvider),
   );
@@ -72,12 +78,14 @@ class TranscriptionController extends StateNotifier<TranscriptionState> with Wid
     required TranscriptionRepository Function() repositoryFactory,
     required NoteAmendService amendService,
     required NoteEmailService sendGridService,
+    required NoteSmsService smsService,
     required QueueService queueService,
     required AppConfig config,
   })  : _permissionService = permissionService,
         _repositoryFactory = repositoryFactory,
         _amendService = amendService,
         _emailService = sendGridService,
+        _smsService = smsService,
         _queueService = queueService,
         _config = config,
         super(const TranscriptionState()) {
@@ -116,6 +124,7 @@ class TranscriptionController extends StateNotifier<TranscriptionState> with Wid
   final TranscriptionRepository Function() _repositoryFactory;
   final NoteAmendService _amendService;
   final NoteEmailService _emailService;
+  final NoteSmsService _smsService;
   final QueueService _queueService;
   final AppConfig _config;
 
@@ -469,6 +478,38 @@ https://storage.googleapis.com/note366-stt-frontend-dev/index.html
       state = state.copyWith(isSendingEmail: false);
       if (e is Failure) rethrow;
       throw UnexpectedFailure('Could not send email via backend: $e');
+    }
+  }
+
+  /// Send the prescription via SMS to the specified mobile number.
+  Future<void> sendPrescriptionViaSms({
+    required String mobileNumber,
+    required String prescription,
+  }) async {
+    final body = '''
+Prescription:
+$prescription
+
+Thank you,
+Practice121
+''';
+
+    state = state.copyWith(isSendingSms: true, clearError: true);
+
+    try {
+      AppLogger.i('TranscriptionController.sendPrescriptionViaSms() - Attempting via backend for $mobileNumber...');
+      await _smsService.sendPrescriptionSms(
+        url: Uri.parse(_config.smsUrl),
+        mobileNumber: mobileNumber,
+        body: body,
+      );
+      AppLogger.i('TranscriptionController.sendPrescriptionViaSms() - SUCCESS');
+      state = state.copyWith(isSendingSms: false);
+    } catch (e, stack) {
+      AppLogger.e('TranscriptionController.sendPrescriptionViaSms() - FAILURE: $e', e, stack);
+      state = state.copyWith(isSendingSms: false);
+      if (e is Failure) rethrow;
+      throw UnexpectedFailure('Could not send SMS via backend: $e');
     }
   }
 

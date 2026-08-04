@@ -14,6 +14,7 @@ class AppConfig {
     required this.voiceCommandWsUrl,
     required this.amendUrl,
     required this.emailUrl,
+    required this.smsUrl,
     required this.clientApiBaseUrl,
   });
 
@@ -31,6 +32,9 @@ class AppConfig {
 
   /// REST endpoint for `/notes/email` (POST summary).
   final String emailUrl;
+
+  /// REST endpoint for `/notes/sms` (POST summary).
+  final String smsUrl;
 
   /// Loads configuration from `--dart-define` environment, falling back to
   /// the production Cloud Run URL used by the React frontend.
@@ -59,6 +63,12 @@ class AppConfig {
           'https://note365-stt-api-687271578749.asia-southeast1.run.app/notes/email',
     );
 
+    const smsUrl = String.fromEnvironment(
+      'SMS_URL',
+      defaultValue:
+          'https://note365-stt-api-687271578749.asia-southeast1.run.app/notes/sms',
+    );
+
     const clientApiBaseUrl = String.fromEnvironment(
       'CLIENT_API_BASE_URL',
       defaultValue:
@@ -70,6 +80,7 @@ class AppConfig {
     AppLogger.i('AppConfig: voiceCommandWsUrl=$voiceCommandWsUrl');
     AppLogger.i('AppConfig: amendUrl=$amendUrl');
     AppLogger.i('AppConfig: emailUrl=$emailUrl');
+    AppLogger.i('AppConfig: smsUrl=$smsUrl');
 
     return AppConfig(
       clientApiBaseUrl: clientApiBaseUrl,
@@ -77,6 +88,7 @@ class AppConfig {
       voiceCommandWsUrl: voiceCommandWsUrl,
       amendUrl: amendUrl,
       emailUrl: emailUrl,
+      smsUrl: smsUrl,
     );
   }
 }

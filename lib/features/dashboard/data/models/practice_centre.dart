@@ -1,5 +1,5 @@
-/// Data models for Doctor Practice Centres and Session schedules returned by
-/// `GET api/practice-centres` and queue statistics.
+// Data models for Doctor Practice Centres and Session schedules returned by
+// `GET api/practice-centres` and queue statistics.
 
 enum SessionScheduleStatus {
   active,

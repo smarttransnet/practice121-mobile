@@ -84,4 +84,76 @@ class AuthService {
           'Unable to connect to authentication server. Please check your connection.');
     }
   }
+
+  /// Refreshes access token using [refreshToken].
+  ///
+  /// Calls `POST /api/auth/refresh-token` and returns renewed [AuthToken].
+  Future<AuthToken> refreshToken({
+    required String baseUrl,
+    required String refreshToken,
+  }) async {
+    if (refreshToken.isEmpty) {
+      throw const UnexpectedFailure('Refresh token is required.');
+    }
+
+    final uri = Uri.parse('$baseUrl/api/auth/refresh-token');
+    AppLogger.i('AuthService: refreshing access token via $uri');
+
+    try {
+      final response = await http.post(
+        uri,
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({
+          'refreshToken': refreshToken,
+        }),
+      );
+
+      if (response.statusCode != 200) {
+        AppLogger.w('AuthService: token refresh HTTP error ${response.statusCode}');
+        throw UnexpectedFailure('Session expired (${response.statusCode}). Please log in again.');
+      }
+
+      final data = jsonDecode(response.body) as Map<String, dynamic>;
+      if (data['success'] == false) {
+        AppLogger.w('AuthService: token refresh rejected by server');
+        throw const UnexpectedFailure('Session expired. Please log in again.');
+      }
+
+      final token = AuthToken.fromJson(data);
+      AppLogger.i('AuthService: token refresh successful');
+      return token;
+    } on Failure {
+      rethrow;
+    } catch (e, stack) {
+      AppLogger.e('AuthService: error during token refresh', e, stack);
+      throw UnexpectedFailure('Unable to refresh session. Please log in again.');
+    }
+  }
+
+  /// Calls backend token revocation endpoint `POST /api/auth/logout`.
+  Future<void> logout({
+    required String baseUrl,
+    required String? refreshToken,
+  }) async {
+    if (refreshToken == null || refreshToken.isEmpty) {
+      return;
+    }
+
+    final uri = Uri.parse('$baseUrl/api/auth/logout');
+    AppLogger.i('AuthService: revoking session via $uri');
+
+    try {
+      await http.post(
+        uri,
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({
+          'refreshToken': refreshToken,
+        }),
+      );
+    } catch (e) {
+      // Log failure but do not throw - client side cleanup must proceed regardless
+      AppLogger.w('AuthService: failed to notify server of logout: $e');
+    }
+  }
 }
+

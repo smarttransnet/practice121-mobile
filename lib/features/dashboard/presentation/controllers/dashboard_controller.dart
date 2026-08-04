@@ -4,6 +4,7 @@ import '../../../../core/config/app_config.dart';
 import '../../../../core/errors/failures.dart';
 import '../../../../core/logging/app_logger.dart';
 import '../../../auth/presentation/controllers/auth_controller.dart';
+import '../../data/models/practice_centre.dart';
 import '../../data/services/practice_centre_service.dart';
 import '../../domain/session_prioritizer.dart';
 import 'dashboard_state.dart';
@@ -101,6 +102,39 @@ class DashboardController extends StateNotifier<DashboardState> {
         status: DashboardStatus.error,
         errorMessage: msg,
       );
+    }
+  }
+
+  /// Fetches latest active patient queue count (waiting + in-consultation) for a session.
+  Future<int> checkActiveQueueCount(CentreSessionSummary summary) async {
+    if (_accessToken == null || _accessToken.isEmpty) {
+      return 0;
+    }
+
+    try {
+      final docId = summary.centre.doctorId.isNotEmpty
+          ? summary.centre.doctorId
+          : (_doctorId ?? '');
+
+      final metrics = await _practiceCentreService.getQueueMetrics(
+        baseUrl: _config.clientApiBaseUrl,
+        accessToken: _accessToken,
+        practiceCentreId: summary.centre.id,
+        doctorId: docId,
+      );
+
+      final waiting = metrics['waiting'] ?? 0;
+      final active = metrics['active'] ?? 0;
+      final completed = metrics['completed'] ?? 0;
+      final total = metrics['total'] ?? 0;
+
+      final activeCount = waiting + active;
+      AppLogger.i(
+          'DashboardController: queue check for ${summary.centre.clinicName} -> waiting=$waiting, active=$active, completed=$completed, total=$total');
+      return activeCount;
+    } catch (e) {
+      AppLogger.w('DashboardController: error checking queue count: $e');
+      return 0;
     }
   }
 }
