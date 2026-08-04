@@ -84,33 +84,23 @@ class _TranscriptionScreenState extends ConsumerState<TranscriptionScreen> {
     controller.toggleRecording();
   }
 
-  Future<void> _handleNewSession() async {
-    if (mounted) {
-      setState(() {
-        _hasStartedSession = false;
-      });
-    }
+  Future<void> _handleFinishConsultation() async {
+    final state = ref.read(transcriptionControllerProvider);
     final controller = ref.read(transcriptionControllerProvider.notifier);
-    controller.reset();
 
-    final res = await controller.advanceNextPatient(
-      doctorId: _effectiveDoctorId,
-      practiceCentreId: _effectivePracticeCentreId,
-    );
-
-    if (mounted && res != null) {
-      final msg = res.hasNextPatient && res.activePatient != null
-          ? 'Now consulting #${res.activePatient!.queueNumber}: ${res.activePatient!.patientName}'
-          : res.completedPatient != null
-              ? 'Finalized consultation for ${res.completedPatient!.patientName}. Queue is now empty.'
-              : 'Queue is currently empty.';
-      ScaffoldMessenger.of(context)
-        ..hideCurrentSnackBar()
-        ..showSnackBar(SnackBar(
-          content: Text(msg),
-          behavior: SnackBarBehavior.floating,
-        ));
+    if (state.activePatient != null) {
+      final queueService = QueueService();
+      await queueService.updateTicketStatus(state.activePatient!.id, 4); // 4: Completed
     }
+
+    controller.reset();
+    if (mounted) {
+      context.pop();
+    }
+  }
+
+  Future<void> _handleNewSession() async {
+    await _handleFinishConsultation();
   }
 
   @override
@@ -150,7 +140,7 @@ class _TranscriptionScreenState extends ConsumerState<TranscriptionScreen> {
               note: next.processedNote!,
               fullTranscript: next.fullTranscript,
               onNewSession: () async {
-                await _handleNewSession();
+                await _handleFinishConsultation();
               },
             );
             _notePanelOpen = false;

@@ -66,6 +66,39 @@ class QueuePatient {
   }
 }
 
+/// Detailed patient queue ticket for the Patient Queue Screen.
+class QueueTicket {
+  const QueueTicket({
+    required this.id,
+    required this.queueNumber,
+    required this.patientName,
+    required this.patientMobile,
+    required this.status, // 0: Waiting, 1: Ready, 2: Called, 3: In Consultation, 4: Completed, 5: Cancelled
+    required this.priority, // 0: Normal, 1: High, 2: Emergency
+    this.sessionName,
+  });
+
+  final String id;
+  final int queueNumber;
+  final String patientName;
+  final String patientMobile;
+  final int status;
+  final int priority;
+  final String? sessionName;
+
+  factory QueueTicket.fromJson(Map<String, dynamic> json) {
+    return QueueTicket(
+      id: json['id']?.toString() ?? '',
+      queueNumber: (json['queueNumber'] as num?)?.toInt() ?? (json['priority'] as num?)?.toInt() ?? 1,
+      patientName: json['patientName']?.toString() ?? 'Patient',
+      patientMobile: json['patientMobile']?.toString() ?? '',
+      status: (json['status'] as num?)?.toInt() ?? 0,
+      priority: (json['priority'] as num?)?.toInt() ?? 0,
+      sessionName: json['sessionName']?.toString() ?? json['sessionLabel']?.toString(),
+    );
+  }
+}
+
 /// Calls the Client-API to advance the queue to the next patient.
 ///
 /// Mirrors the WEB `QueueService.js → advanceNextPatient()` function.
@@ -74,6 +107,49 @@ class QueueService {
   /// Matches the URL used in [httpClient.ts] in the web frontend.
   static const String _baseUrl =
       'https://practice121-api-687271578749.asia-southeast1.run.app';
+
+  /// Fetches active queue tickets for the selected practice centre.
+  Future<List<QueueTicket>> fetchQueueTickets({
+    required String practiceCentreId,
+    String? doctorId,
+    String? visitDate,
+  }) async {
+    final queryParams = <String, String>{
+      'practiceCentreId': practiceCentreId,
+      if (doctorId != null && doctorId.isNotEmpty) 'doctorId': doctorId,
+      if (visitDate != null && visitDate.isNotEmpty) 'visitDate': visitDate,
+    };
+    final uri = Uri.parse('$_baseUrl/api/patient-queue')
+        .replace(queryParameters: queryParams);
+
+    try {
+      final response = await http.get(uri);
+      if (response.statusCode == 200) {
+        final List list = jsonDecode(response.body);
+        return list.map((item) => QueueTicket.fromJson(item)).toList();
+      }
+      return [];
+    } catch (e) {
+      AppLogger.w('QueueService: fetch queue tickets failed: $e');
+      return [];
+    }
+  }
+
+  /// Updates ticket status (e.g. 3: In Consultation, 4: Completed).
+  Future<bool> updateTicketStatus(String ticketId, int status) async {
+    final uri = Uri.parse('$_baseUrl/api/patient-queue/$ticketId/status');
+    try {
+      final response = await http.put(
+        uri,
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({'status': status}),
+      );
+      return response.statusCode == 200;
+    } catch (e) {
+      AppLogger.w('QueueService: update ticket status failed: $e');
+      return false;
+    }
+  }
 
   /// Marks the current active consultation as complete and activates the next
   /// waiting patient in the queue.

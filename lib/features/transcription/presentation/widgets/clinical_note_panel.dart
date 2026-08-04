@@ -137,54 +137,6 @@ class ClinicalNotePanel extends ConsumerWidget {
                         : const Icon(Icons.email_rounded),
                   ),
                   IconButton(
-                    tooltip: 'Send SMS',
-                    onPressed: state.isSendingSms
-                        ? null
-                        : () async {
-                            final targetPhone =
-                                (state.activePatient?.patientMobile.isNotEmpty ?? false)
-                                    ? state.activePatient!.patientMobile
-                                    : '0712345678';
-                            try {
-                              await ref
-                                  .read(transcriptionControllerProvider.notifier)
-                                  .sendPrescriptionViaSms(
-                                    mobileNumber: targetPhone,
-                                    prescription:
-                                        _extractPrescription(currentNote),
-                                  );
-                              if (context.mounted) {
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  SnackBar(
-                                    content: Text(
-                                        'Prescription SMS sent to $targetPhone'),
-                                    backgroundColor: AppColors.success,
-                                  ),
-                                );
-                              }
-                            } catch (e) {
-                              if (context.mounted) {
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  SnackBar(
-                                    content: Text('Failed to send SMS: $e'),
-                                    backgroundColor: theme.colorScheme.error,
-                                  ),
-                                );
-                              }
-                            }
-                          },
-                    icon: state.isSendingSms
-                        ? const SizedBox(
-                            width: 20,
-                            height: 20,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2,
-                              color: AppColors.accent,
-                            ),
-                          )
-                        : const Icon(Icons.sms_rounded),
-                  ),
-                  IconButton(
                     tooltip: 'Share',
                     onPressed: () => _shareNote(context, currentNote),
                     icon: const Icon(Icons.ios_share_rounded),
@@ -219,7 +171,56 @@ class ClinicalNotePanel extends ConsumerWidget {
 
             const Divider(height: 1),
             Padding(
-              padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+              padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
+              child: OutlinedButton.icon(
+                onPressed: state.isSendingSms
+                    ? null
+                    : () async {
+                        final targetPhone =
+                            (state.activePatient?.patientMobile.isNotEmpty ?? false)
+                                ? state.activePatient!.patientMobile
+                                : '0775706080';
+                        try {
+                          await ref
+                              .read(transcriptionControllerProvider.notifier)
+                              .sendPrescriptionViaSms(
+                                mobileNumber: targetPhone,
+                                prescription: _extractPrescription(currentNote),
+                              );
+                          if (context.mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text('Prescription SMS sent to $targetPhone'),
+                                backgroundColor: AppColors.success,
+                              ),
+                            );
+                          }
+                        } catch (e) {
+                          if (context.mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text('Failed to send SMS: $e'),
+                                backgroundColor: theme.colorScheme.error,
+                              ),
+                            );
+                          }
+                        }
+                      },
+                icon: state.isSendingSms
+                    ? const SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Icon(Icons.sms_rounded, color: AppColors.accent),
+                label: const Text('Send SMS Prescription'),
+                style: OutlinedButton.styleFrom(
+                  minimumSize: const Size.fromHeight(42),
+                ),
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
               child: Row(
                 children: [
                   Expanded(
@@ -236,8 +237,11 @@ class ClinicalNotePanel extends ConsumerWidget {
                         Navigator.of(context).pop();
                         onNewSession();
                       },
-                      icon: const Icon(Icons.fiber_manual_record),
-                      label: const Text('New session'),
+                      icon: const Icon(Icons.check_circle_rounded),
+                      label: const Text('Finish Consultation'),
+                      style: FilledButton.styleFrom(
+                        backgroundColor: AppColors.success,
+                      ),
                     ),
                   ),
                 ],

@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../features/auth/presentation/controllers/auth_controller.dart';
 import '../features/auth/presentation/screens/login_screen.dart';
 import '../features/dashboard/presentation/screens/dashboard_screen.dart';
+import '../features/transcription/presentation/screens/patient_queue_screen.dart';
 import '../features/transcription/presentation/screens/transcription_screen.dart';
 
 /// Listenable bridge to trigger GoRouter redirects when AuthState updates.
@@ -66,6 +67,18 @@ final routerProvider = Provider<GoRouter>((ref) {
         builder: (context, state) => const DashboardScreen(),
       ),
       GoRoute(
+        path: AppRoutes.patientQueue,
+        name: AppRoutes.patientQueueName,
+        builder: (context, state) {
+          final extra = state.extra as Map<String, dynamic>?;
+          return PatientQueueScreen(
+            doctorId: extra?['doctorId'] as String? ?? '',
+            practiceCentreId: extra?['practiceCentreId'] as String? ?? '',
+            clinicName: extra?['clinicName'] as String? ?? 'Practice Centre',
+          );
+        },
+      ),
+      GoRoute(
         path: AppRoutes.transcription,
         name: AppRoutes.transcriptionName,
         builder: (context, state) {
@@ -87,6 +100,8 @@ class AppRoutes {
   static const loginName = 'login';
   static const dashboard = '/dashboard';
   static const dashboardName = 'dashboard';
+  static const patientQueue = '/patient-queue';
+  static const patientQueueName = 'patientQueue';
   static const transcription = '/transcription';
   static const transcriptionName = 'transcription';
 }

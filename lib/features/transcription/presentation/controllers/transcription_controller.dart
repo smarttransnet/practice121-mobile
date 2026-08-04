@@ -513,6 +513,14 @@ Practice121
     }
   }
 
+  /// Manually sets the active patient for consultation.
+  void setActivePatient(QueuePatient patient) {
+    state = state.copyWith(
+      activePatient: patient,
+      clearError: true,
+    );
+  }
+
   /// Advances the queue to the next patient via QueueService, updates active patient state,
   /// and resets/prepares the recording state for the new session.
   Future<NextPatientResponse?> advanceNextPatient({
