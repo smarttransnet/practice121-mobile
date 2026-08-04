@@ -17,11 +17,8 @@ import '../../data/services/note_email_service.dart';
 import '../../data/services/note_sms_service.dart';
 import '../../data/services/queue_service.dart';
 import '../../data/services/transcription_socket_service.dart';
+import '../../../../core/network/api_client.dart';
 import 'transcription_state.dart';
-
-// ────────────────────────────────────────────────────────────────────────────
-// Providers (DI graph)
-// ────────────────────────────────────────────────────────────────────────────
 
 final permissionServiceProvider = Provider<PermissionService>((ref) {
   return const PermissionService();
@@ -40,7 +37,8 @@ final noteSmsServiceProvider = Provider<NoteSmsService>((ref) {
 });
 
 final queueServiceProvider = Provider<QueueService>((ref) {
-  return QueueService();
+  final apiClient = ref.watch(apiClientProvider);
+  return QueueService(apiClient: apiClient);
 });
 
 /// Repository factory — fresh instance per session so old subscriptions can't

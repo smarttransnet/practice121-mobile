@@ -30,7 +30,6 @@ class PatientQueueScreen extends ConsumerStatefulWidget {
 }
 
 class _PatientQueueScreenState extends ConsumerState<PatientQueueScreen> {
-  final QueueService _queueService = QueueService();
   List<QueueTicket> _tickets = [];
   bool _isLoading = true;
   String? _error;
@@ -49,9 +48,13 @@ class _PatientQueueScreenState extends ConsumerState<PatientQueueScreen> {
     });
 
     try {
-      final tickets = await _queueService.fetchQueueTickets(
+      final now = DateTime.now();
+      final todayStr = '${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}';
+      final queueService = ref.read(queueServiceProvider);
+      final tickets = await queueService.fetchQueueTickets(
         practiceCentreId: widget.practiceCentreId,
         doctorId: widget.doctorId,
+        visitDate: todayStr,
       );
       if (mounted) {
         setState(() {
@@ -96,10 +99,11 @@ class _PatientQueueScreenState extends ConsumerState<PatientQueueScreen> {
 
   Future<void> _selectPatient(QueueTicket ticket) async {
     final controller = ref.read(transcriptionControllerProvider.notifier);
+    final queueService = ref.read(queueServiceProvider);
 
     // Update status to In Consultation (3) if waiting
     if (ticket.status < 3) {
-      await _queueService.updateTicketStatus(ticket.id, 3);
+      await queueService.updateTicketStatus(ticket.id, 3);
     }
 
     controller.setActivePatient(QueuePatient(

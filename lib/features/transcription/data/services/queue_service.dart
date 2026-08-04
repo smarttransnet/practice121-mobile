@@ -3,6 +3,7 @@ import 'package:http/http.dart' as http;
 
 import '../../../../core/errors/failures.dart';
 import '../../../../core/logging/app_logger.dart';
+import '../../../../core/network/api_client.dart';
 
 /// Response from the queue advance endpoint.
 class NextPatientResponse {
@@ -89,7 +90,7 @@ class QueueTicket {
   factory QueueTicket.fromJson(Map<String, dynamic> json) {
     return QueueTicket(
       id: json['id']?.toString() ?? '',
-      queueNumber: (json['queueNumber'] as num?)?.toInt() ?? (json['priority'] as num?)?.toInt() ?? 1,
+      queueNumber: (json['queueNumber'] as num?)?.toInt() ?? (json['queueOrder'] as num?)?.toInt() ?? 1,
       patientName: json['patientName']?.toString() ?? 'Patient',
       patientMobile: json['patientMobile']?.toString() ?? '',
       status: (json['status'] as num?)?.toInt() ?? 0,
@@ -100,11 +101,12 @@ class QueueTicket {
 }
 
 /// Calls the Client-API to advance the queue to the next patient.
-///
-/// Mirrors the WEB `QueueService.js → advanceNextPatient()` function.
 class QueueService {
+  QueueService({ApiClient? apiClient}) : _apiClient = apiClient;
+
+  final ApiClient? _apiClient;
+
   /// Base URL of the Practice121 Client-API.
-  /// Matches the URL used in [httpClient.ts] in the web frontend.
   static const String _baseUrl =
       'https://practice121-api-687271578749.asia-southeast1.run.app';
 
@@ -123,11 +125,15 @@ class QueueService {
         .replace(queryParameters: queryParams);
 
     try {
-      final response = await http.get(uri);
+      final response = _apiClient != null
+          ? await _apiClient.get(uri)
+          : await http.get(uri);
+
       if (response.statusCode == 200) {
         final List list = jsonDecode(response.body);
         return list.map((item) => QueueTicket.fromJson(item)).toList();
       }
+      AppLogger.w('QueueService: fetch queue status code ${response.statusCode}');
       return [];
     } catch (e) {
       AppLogger.w('QueueService: fetch queue tickets failed: $e');
@@ -139,11 +145,17 @@ class QueueService {
   Future<bool> updateTicketStatus(String ticketId, int status) async {
     final uri = Uri.parse('$_baseUrl/api/patient-queue/$ticketId/status');
     try {
-      final response = await http.put(
-        uri,
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({'status': status}),
-      );
+      final response = _apiClient != null
+          ? await _apiClient.put(
+              uri,
+              headers: {'Content-Type': 'application/json'},
+              body: jsonEncode({'status': status}),
+            )
+          : await http.put(
+              uri,
+              headers: {'Content-Type': 'application/json'},
+              body: jsonEncode({'status': status}),
+            );
       return response.statusCode == 200;
     } catch (e) {
       AppLogger.w('QueueService: update ticket status failed: $e');
@@ -173,15 +185,25 @@ class QueueService {
         'practiceCentreId=$practiceCentreId, visitDate=$visitDate');
 
     try {
-      final response = await http.post(
-        uri,
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({
-          'doctorId': doctorId,
-          'practiceCentreId': practiceCentreId,
-          'visitDate': visitDate,
-        }),
-      );
+      final response = _apiClient != null
+          ? await _apiClient.post(
+              uri,
+              headers: {'Content-Type': 'application/json'},
+              body: jsonEncode({
+                'doctorId': doctorId,
+                'practiceCentreId': practiceCentreId,
+                'visitDate': visitDate,
+              }),
+            )
+          : await http.post(
+              uri,
+              headers: {'Content-Type': 'application/json'},
+              body: jsonEncode({
+                'doctorId': doctorId,
+                'practiceCentreId': practiceCentreId,
+                'visitDate': visitDate,
+              }),
+            );
 
       if (response.statusCode != 200) {
         String message =

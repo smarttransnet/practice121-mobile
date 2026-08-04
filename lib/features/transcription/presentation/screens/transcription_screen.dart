@@ -89,7 +89,7 @@ class _TranscriptionScreenState extends ConsumerState<TranscriptionScreen> {
     final controller = ref.read(transcriptionControllerProvider.notifier);
 
     if (state.activePatient != null) {
-      final queueService = QueueService();
+      final queueService = ref.read(queueServiceProvider);
       await queueService.updateTicketStatus(state.activePatient!.id, 4); // 4: Completed
     }
 
