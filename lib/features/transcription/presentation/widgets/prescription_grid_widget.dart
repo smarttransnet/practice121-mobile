@@ -5,10 +5,11 @@ import '../../../../app/theme/app_colors.dart';
 import '../../data/models/prescription_item.dart';
 import '../../data/services/favorites_service.dart';
 
-/// Interactive Prescription Widget that supports:
-///   1. Sentence View Mode (Default read-only presentation for end-users)
-///   2. Directly Editable Grid Mode with ComboBox search, custom typing,
-///      auto-fill from Favourites, and row management.
+/// Interactive Prescription Widget supporting:
+///   1. Read-Only Sentence View Mode with Double-Tap to Edit trigger.
+///   2. Directly Editable Grid Mode with separate fields (Generic, Brand, Dose, Freq, Dur).
+///   3. Scrollable keyboard-aware layout preventing onscreen keyboard overlaps.
+///   4. Real-time bi-directional auto-fill of Dose, Frequency, Duration on Generic/Brand name changes.
 class PrescriptionGridWidget extends ConsumerStatefulWidget {
   const PrescriptionGridWidget({
     super.key,
@@ -88,6 +89,19 @@ class _PrescriptionGridWidgetState extends ConsumerState<PrescriptionGridWidget>
     });
   }
 
+  void _autoFillIfMatchingFavorite(int index, String query, List<FavoriteMedicineDto> favorites, {required bool isGeneric}) {
+    if (query.trim().isEmpty) return;
+    final lower = query.trim().toLowerCase();
+    final match = favorites.firstWhere(
+      (f) => f.genericName.toLowerCase() == lower || (f.brandName?.toLowerCase() == lower),
+      orElse: () => FavoriteMedicineDto(id: '', genericName: ''),
+    );
+
+    if (match.id.isNotEmpty) {
+      _handleFavoriteSelect(index, match, isGeneric: isGeneric);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -120,7 +134,7 @@ class _PrescriptionGridWidgetState extends ConsumerState<PrescriptionGridWidget>
                   });
                 },
                 icon: Icon(_isEditing ? Icons.check_circle_outline_rounded : Icons.edit_note_rounded, size: 18),
-                label: Text(_isEditing ? 'Done Editing' : 'Edit Prescription'),
+                label: Text(_isEditing ? 'Done Editing' : 'Edit Grid'),
                 style: OutlinedButton.styleFrom(
                   visualDensity: VisualDensity.compact,
                 ),
@@ -168,63 +182,94 @@ class _PrescriptionGridWidgetState extends ConsumerState<PrescriptionGridWidget>
       );
     }
 
-    return ListView.separated(
-      padding: const EdgeInsets.all(16),
-      itemCount: validItems.length,
-      separatorBuilder: (context, index) => const SizedBox(height: 10),
-      itemBuilder: (context, index) {
-        final item = validItems[index];
-        return Container(
-          padding: const EdgeInsets.all(12),
-          decoration: BoxDecoration(
-            color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
-            borderRadius: BorderRadius.circular(10),
-            border: Border.all(color: theme.colorScheme.outlineVariant.withValues(alpha: 0.5)),
+    return Column(
+      children: [
+        Padding(
+          padding: const EdgeInsets.only(top: 8, bottom: 4),
+          child: Text(
+            '💡 Double-tap any prescription text to edit',
+            style: theme.textTheme.labelSmall?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.7),
+              fontStyle: FontStyle.italic,
+            ),
           ),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Container(
-                width: 24,
-                height: 24,
-                decoration: BoxDecoration(
-                  color: AppColors.accent.withValues(alpha: 0.15),
-                  shape: BoxShape.circle,
-                ),
-                child: Center(
-                  child: Text(
-                    '${index + 1}',
-                    style: theme.textTheme.labelMedium?.copyWith(
-                      color: AppColors.accent,
-                      fontWeight: FontWeight.bold,
-                    ),
+        ),
+        Expanded(
+          child: ListView.separated(
+            padding: const EdgeInsets.fromLTRB(16, 4, 16, 16),
+            itemCount: validItems.length,
+            separatorBuilder: (context, index) => const SizedBox(height: 10),
+            itemBuilder: (context, index) {
+              final item = validItems[index];
+              return GestureDetector(
+                onDoubleTap: () {
+                  setState(() {
+                    _isEditing = true;
+                  });
+                },
+                child: Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: theme.colorScheme.outlineVariant.withValues(alpha: 0.5)),
+                  ),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Container(
+                        width: 24,
+                        height: 24,
+                        decoration: BoxDecoration(
+                          color: AppColors.accent.withValues(alpha: 0.15),
+                          shape: BoxShape.circle,
+                        ),
+                        child: Center(
+                          child: Text(
+                            '${index + 1}',
+                            style: theme.textTheme.labelMedium?.copyWith(
+                              color: AppColors.accent,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Text(
+                          item.toSentenceString(),
+                          style: theme.textTheme.bodyMedium?.copyWith(
+                            height: 1.4,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ),
+                      Icon(
+                        Icons.edit_outlined,
+                        size: 16,
+                        color: theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.4),
+                      ),
+                    ],
                   ),
                 ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Text(
-                  item.toSentenceString(),
-                  style: theme.textTheme.bodyMedium?.copyWith(
-                    height: 1.4,
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
-              ),
-            ],
+              );
+            },
           ),
-        );
-      },
+        ),
+      ],
     );
   }
 
   Widget _buildGridEditView(BuildContext context, ThemeData theme, List<FavoriteMedicineDto> favorites) {
+    final bottomInset = MediaQuery.of(context).viewInsets.bottom;
+
     return Column(
       children: [
         Expanded(
           child: SingleChildScrollView(
             scrollDirection: Axis.vertical,
-            padding: const EdgeInsets.all(12),
+            keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+            padding: EdgeInsets.fromLTRB(12, 12, 12, 12 + bottomInset),
             child: Table(
               columnWidths: const {
                 0: FlexColumnWidth(2.2), // Medicine (Generic & Brand)
@@ -310,7 +355,10 @@ class _PrescriptionGridWidgetState extends ConsumerState<PrescriptionGridWidget>
                 hintText: 'Generic Name',
                 initialValue: item.genericName ?? '',
                 options: favorites.map((f) => f.genericName).where((s) => s.isNotEmpty).toSet().toList(),
-                onChanged: (val) => item.genericName = val,
+                onChanged: (val) {
+                  item.genericName = val;
+                  _autoFillIfMatchingFavorite(index, val, favorites, isGeneric: true);
+                },
                 onSelected: (val) {
                   final fav = favorites.firstWhere((f) => f.genericName == val, orElse: () => FavoriteMedicineDto(id: '', genericName: val));
                   _handleFavoriteSelect(index, fav, isGeneric: true);
@@ -322,7 +370,10 @@ class _PrescriptionGridWidgetState extends ConsumerState<PrescriptionGridWidget>
                 hintText: 'Brand Name',
                 initialValue: item.brandName ?? '',
                 options: favorites.map((f) => f.brandName).whereType<String>().where((s) => s.isNotEmpty).toSet().toList(),
-                onChanged: (val) => item.brandName = val,
+                onChanged: (val) {
+                  item.brandName = val;
+                  _autoFillIfMatchingFavorite(index, val, favorites, isGeneric: false);
+                },
                 onSelected: (val) {
                   final fav = favorites.firstWhere((f) => f.brandName == val, orElse: () => FavoriteMedicineDto(id: '', genericName: val, brandName: val));
                   _handleFavoriteSelect(index, fav, isGeneric: false);
@@ -335,7 +386,9 @@ class _PrescriptionGridWidgetState extends ConsumerState<PrescriptionGridWidget>
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 4),
           child: TextFormField(
+            key: ValueKey('dose_${index}_${item.dose}'),
             initialValue: item.dose ?? '',
+            scrollPadding: const EdgeInsets.all(24),
             decoration: const InputDecoration(
               hintText: 'e.g. 500mg',
               contentPadding: EdgeInsets.symmetric(horizontal: 6, vertical: 8),
@@ -350,7 +403,9 @@ class _PrescriptionGridWidgetState extends ConsumerState<PrescriptionGridWidget>
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 4),
           child: TextFormField(
+            key: ValueKey('freq_${index}_${item.frequency}'),
             initialValue: item.frequency ?? '',
+            scrollPadding: const EdgeInsets.all(24),
             decoration: const InputDecoration(
               hintText: 'e.g. BD',
               contentPadding: EdgeInsets.symmetric(horizontal: 6, vertical: 8),
@@ -365,7 +420,9 @@ class _PrescriptionGridWidgetState extends ConsumerState<PrescriptionGridWidget>
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 4),
           child: TextFormField(
+            key: ValueKey('dur_${index}_${item.duration}'),
             initialValue: item.duration ?? '',
+            scrollPadding: const EdgeInsets.all(24),
             decoration: const InputDecoration(
               hintText: 'e.g. 5 days',
               contentPadding: EdgeInsets.symmetric(horizontal: 6, vertical: 8),
@@ -402,6 +459,7 @@ class _PrescriptionGridWidgetState extends ConsumerState<PrescriptionGridWidget>
     return LayoutBuilder(
       builder: (context, constraints) {
         return RawAutocomplete<String>(
+          key: ValueKey('${hintText}_$initialValue'),
           initialValue: TextEditingValue(text: initialValue),
           optionsBuilder: (TextEditingValue textEditingValue) {
             if (textEditingValue.text.isEmpty) {
@@ -419,6 +477,7 @@ class _PrescriptionGridWidgetState extends ConsumerState<PrescriptionGridWidget>
             return TextFormField(
               controller: controller,
               focusNode: focusNode,
+              scrollPadding: const EdgeInsets.all(24),
               decoration: InputDecoration(
                 hintText: hintText,
                 contentPadding: const EdgeInsets.symmetric(horizontal: 6, vertical: 8),
