@@ -6,7 +6,9 @@ import 'package:share_plus/share_plus.dart';
 
 import '../../../../app/theme/app_colors.dart';
 import '../../../../core/logging/app_logger.dart';
+import '../../data/models/prescription_item.dart';
 import '../controllers/transcription_controller.dart';
+import 'prescription_grid_widget.dart';
 
 /// Modal sheet that displays the Gemini-generated clinical note.
 ///
@@ -159,7 +161,12 @@ class ClinicalNotePanel extends ConsumerWidget {
                   ? TabBarView(
                       children: [
                         _NoteBody(text: currentNote),
-                        _NoteBody(text: _extractPrescription(currentNote)),
+                        PrescriptionGridWidget(
+                          initialRawPrescription: _extractPrescription(currentNote),
+                          onPrescriptionChanged: (items, rawJson, sentenceText) {
+                            // Update local or amended note state with new formatted prescription
+                          },
+                        ),
                       ],
                     )
                   : _NoteBody(text: currentNote),
@@ -185,7 +192,7 @@ class ClinicalNotePanel extends ConsumerWidget {
                               .read(transcriptionControllerProvider.notifier)
                               .sendPrescriptionViaSms(
                                 mobileNumber: targetPhone,
-                                prescription: _extractPrescription(currentNote),
+                                prescription: _getAsciiPrescriptionForSms(currentNote),
                               );
                           if (context.mounted) {
                             ScaffoldMessenger.of(context).showSnackBar(
@@ -275,6 +282,15 @@ class ClinicalNotePanel extends ConsumerWidget {
       }
     }
     return 'No prescription found in note.';
+  }
+
+  String _getAsciiPrescriptionForSms(String note) {
+    final rawText = _extractPrescription(note);
+    final items = PrescriptionItem.fromRaw(rawText);
+    if (items.isNotEmpty) {
+      return items.map((i) => i.toSmsAsciiString()).where((s) => s.isNotEmpty).join('\n');
+    }
+    return PrescriptionItem.sanitizeToAscii(rawText);
   }
 
   Future<void> _shareNote(BuildContext context, String currentNote) async {
