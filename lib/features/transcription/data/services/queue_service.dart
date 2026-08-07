@@ -473,6 +473,61 @@ class QueueService {
       return false;
     }
   }
+
+  /// Registers a child patient under a parent account via `POST /api/patients/{parentId}/children`.
+  Future<PatientRecord> addChildPatient(
+    String parentId, {
+    required String firstName,
+    String? lastName,
+    String? fullName,
+    required String dateOfBirth,
+    required String gender,
+  }) async {
+    final uri = Uri.parse('$_baseUrl/api/patients/$parentId/children');
+    final body = {
+      'firstName': firstName,
+      if (lastName != null && lastName.isNotEmpty) 'lastName': lastName,
+      if (fullName != null && fullName.isNotEmpty) 'fullName': fullName,
+      'dateOfBirth': dateOfBirth,
+      'gender': gender,
+    };
+
+    try {
+      final response = _apiClient != null
+          ? await _apiClient.post(
+              uri,
+              headers: {'Content-Type': 'application/json'},
+              body: jsonEncode(body),
+            )
+          : await http.post(
+              uri,
+              headers: {'Content-Type': 'application/json'},
+              body: jsonEncode(body),
+            );
+
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        return PatientRecord.fromJson(jsonDecode(response.body) as Map<String, dynamic>);
+      }
+      String message = 'Failed to add child patient.';
+      try {
+        final err = jsonDecode(response.body);
+        if (err is Map<String, dynamic>) {
+          if (err['detail'] != null) {
+            message = err['detail'].toString();
+          } else if (err['title'] != null) {
+            message = err['title'].toString();
+          } else if (err['message'] != null) {
+            message = err['message'].toString();
+          }
+        }
+      } catch (_) {}
+      throw UnexpectedFailure(message);
+    } on Failure {
+      rethrow;
+    } catch (e) {
+      throw UnexpectedFailure('Could not add child patient: $e');
+    }
+  }
 }
 
 /// Response returned when sending an OTP.
@@ -532,6 +587,8 @@ class PatientRecord {
     this.nicNumber,
     required this.mobileNumber,
     this.gender,
+    this.dateOfBirth,
+    this.parentId,
   });
 
   final String id;
@@ -540,6 +597,8 @@ class PatientRecord {
   final String? nicNumber;
   final String mobileNumber;
   final String? gender;
+  final String? dateOfBirth;
+  final String? parentId;
 
   factory PatientRecord.fromJson(Map<String, dynamic> json) {
     return PatientRecord(
@@ -549,6 +608,8 @@ class PatientRecord {
       nicNumber: json['nicNumber']?.toString(),
       mobileNumber: json['mobileNumber']?.toString() ?? '',
       gender: json['gender']?.toString(),
+      dateOfBirth: json['dateOfBirth']?.toString(),
+      parentId: json['parentId']?.toString(),
     );
   }
 }

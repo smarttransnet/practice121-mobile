@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../app/theme/app_colors.dart';
 import '../../data/services/queue_service.dart';
 import '../controllers/transcription_controller.dart';
+import 'add_child_dialog.dart';
 
 enum AddPatientMode { input, otp, select, verified, notFound }
 
@@ -128,7 +129,9 @@ class _AddPatientSheetState extends ConsumerState<AddPatientSheet> {
     return digits;
   }
 
+  PatientRecord? _primaryPatientRecord;
   PatientRecord? _verifiedPatient;
+  List<PatientRecord> _verifiedChildren = [];
   List<PatientRecord> _searchResults = [];
 
   Future<void> _handleCheckPatient() async {
@@ -239,6 +242,8 @@ class _AddPatientSheetState extends ConsumerState<AddPatientSheet> {
 
         if (lookup != null) {
           setState(() {
+            _primaryPatientRecord = lookup.primaryPatient;
+            _verifiedChildren = List.from(lookup.children);
             _verifiedPatient = lookup.primaryPatient;
             _mode = AddPatientMode.verified;
             _isSubmitting = false;
@@ -255,6 +260,22 @@ class _AddPatientSheetState extends ConsumerState<AddPatientSheet> {
       setState(() {
         _errorMessage = e.toString().replaceAll('Exception: ', '');
         _isSubmitting = false;
+      });
+    }
+  }
+
+  Future<void> _handleOpenAddChildDialog() async {
+    final parent = _primaryPatientRecord ?? _verifiedPatient;
+    if (parent == null || parent.id.isEmpty) {
+      setState(() => _errorMessage = 'Primary parent account is required to register a child.');
+      return;
+    }
+
+    final newChild = await AddChildDialog.show(context, parentId: parent.id);
+    if (newChild != null && mounted) {
+      setState(() {
+        _verifiedChildren.add(newChild);
+        _verifiedPatient = newChild; // Auto-select newly registered child!
       });
     }
   }
@@ -294,6 +315,8 @@ class _AddPatientSheetState extends ConsumerState<AddPatientSheet> {
       }
 
       setState(() {
+        _primaryPatientRecord = p;
+        _verifiedChildren = [];
         _verifiedPatient = p;
         _mode = AddPatientMode.verified;
         _isSubmitting = false;
@@ -710,43 +733,82 @@ class _AddPatientSheetState extends ConsumerState<AddPatientSheet> {
   }
 
   Widget _buildVerifiedStep(ThemeData theme) {
-    final p = _verifiedPatient!;
+    final parent = _primaryPatientRecord ?? _verifiedPatient!;
+    final selectedId = _verifiedPatient?.id ?? parent.id;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Card(
-          color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.4),
-          shape: RoundedRectangleBorder(
+        // Info Banner
+        Container(
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: AppColors.accent.withValues(alpha: 0.08),
             borderRadius: BorderRadius.circular(12),
-            side: BorderSide(color: AppColors.accent.withValues(alpha: 0.4)),
+            border: Border.all(color: AppColors.accent.withValues(alpha: 0.3)),
           ),
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    const Icon(Icons.check_circle_rounded, color: AppColors.success, size: 20),
-                    const SizedBox(width: 8),
-                    Text(
-                      'Verified Patient Profile',
-                      style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.bold, color: AppColors.success),
-                    ),
-                  ],
+          child: Row(
+            children: [
+              const Icon(Icons.info_outline_rounded, color: AppColors.accent, size: 20),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  'Patient record found. Select who this appointment/queue ticket is for:',
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: AppColors.accent,
+                    fontWeight: FontWeight.w600,
+                  ),
                 ),
-                const SizedBox(height: 12),
-                Text('Name: ${p.firstName} ${p.lastName ?? ''}', style: const TextStyle(fontWeight: FontWeight.w600)),
-                if (p.nicNumber != null && p.nicNumber!.isNotEmpty) Text('NIC Number: ${p.nicNumber}'),
-                Text('Mobile Number: ${p.mobileNumber}'),
-                if (p.gender != null && p.gender!.isNotEmpty) Text('Gender: ${p.gender}'),
-              ],
-            ),
+              ),
+            ],
           ),
         ),
         const SizedBox(height: 16),
 
+        // Section Title + Add Child Button
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text(
+              'Who is this appointment for?',
+              style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.bold),
+            ),
+            TextButton.icon(
+              onPressed: _handleOpenAddChildDialog,
+              icon: const Icon(Icons.add_rounded, size: 18, color: AppColors.accent),
+              label: const Text(
+                'Add Child',
+                style: TextStyle(color: AppColors.accent, fontWeight: FontWeight.bold),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 8),
+
+        // 1. Primary Account Option Card
+        _buildPatientOptionCard(
+          theme: theme,
+          title: '${parent.firstName} ${parent.lastName ?? ''}'.trim(),
+          subtitle: 'Primary Account (Self) ${parent.nicNumber != null && parent.nicNumber!.isNotEmpty ? '• NIC: ${parent.nicNumber}' : ''}',
+          isSelected: selectedId == parent.id,
+          onTap: () => setState(() => _verifiedPatient = parent),
+        ),
+
+        // 2. Children Option Cards
+        for (final child in _verifiedChildren) ...[
+          const SizedBox(height: 8),
+          _buildPatientOptionCard(
+            theme: theme,
+            title: '${child.firstName} ${child.lastName ?? ''}'.trim(),
+            subtitle: 'Dependent (Child) • ${child.gender != null ? 'Gender: ${child.gender}' : 'Child Patient'}',
+            isSelected: selectedId == child.id,
+            onTap: () => setState(() => _verifiedPatient = child),
+          ),
+        ],
+
+        const SizedBox(height: 18),
+
+        // Queue Priority
         Text(
           'Queue Priority',
           style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w600),
@@ -763,6 +825,7 @@ class _AddPatientSheetState extends ConsumerState<AddPatientSheet> {
         ),
         const SizedBox(height: 24),
 
+        // Confirm & Add to Queue Action Button
         FilledButton.icon(
           onPressed: _isSubmitting ? null : _handleFinalConfirm,
           icon: _isSubmitting
@@ -775,6 +838,79 @@ class _AddPatientSheetState extends ConsumerState<AddPatientSheet> {
           ),
         ),
       ],
+    );
+  }
+
+  Widget _buildPatientOptionCard({
+    required ThemeData theme,
+    required String title,
+    required String subtitle,
+    required bool isSelected,
+    required VoidCallback onTap,
+  }) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(14),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: isSelected
+              ? AppColors.accent.withValues(alpha: 0.08)
+              : theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(
+            color: isSelected ? AppColors.accent : theme.colorScheme.outlineVariant,
+            width: isSelected ? 2.0 : 1.0,
+          ),
+        ),
+        child: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: isSelected
+                    ? AppColors.accent.withValues(alpha: 0.15)
+                    : theme.colorScheme.surface,
+                shape: BoxShape.circle,
+              ),
+              child: Icon(
+                isSelected ? Icons.person_rounded : Icons.person_outline_rounded,
+                color: isSelected ? AppColors.accent : theme.colorScheme.onSurfaceVariant,
+                size: 20,
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: theme.textTheme.titleSmall?.copyWith(
+                      fontWeight: FontWeight.bold,
+                      color: isSelected ? AppColors.accent : null,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    subtitle,
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: theme.colorScheme.onSurfaceVariant,
+                      fontSize: 11,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Icon(
+              isSelected ? Icons.check_circle_rounded : Icons.radio_button_unchecked_rounded,
+              color: isSelected ? AppColors.accent : theme.colorScheme.outlineVariant,
+              size: 22,
+            ),
+          ],
+        ),
+      ),
     );
   }
 }
