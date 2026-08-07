@@ -40,17 +40,23 @@ class AddPatientSheet extends ConsumerStatefulWidget {
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
-      builder: (_) => Padding(
-        padding: EdgeInsets.only(
-          bottom: MediaQuery.of(context).viewInsets.bottom,
-        ),
-        child: AddPatientSheet(
-          doctorId: doctorId,
-          practiceCentreId: practiceCentreId,
-          sessionId: sessionId,
-          existingTickets: existingTickets,
-        ),
-      ),
+      builder: (sheetContext) {
+        final bottomInset = MediaQuery.of(sheetContext).viewInsets.bottom;
+        final bottomPadding = MediaQuery.of(sheetContext).padding.bottom;
+        return SafeArea(
+          child: Padding(
+            padding: EdgeInsets.only(
+              bottom: bottomInset + bottomPadding + 16,
+            ),
+            child: AddPatientSheet(
+              doctorId: doctorId,
+              practiceCentreId: practiceCentreId,
+              sessionId: sessionId,
+              existingTickets: existingTickets,
+            ),
+          ),
+        );
+      },
     );
   }
 

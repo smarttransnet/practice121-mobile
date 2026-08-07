@@ -459,78 +459,155 @@ class _PrescriptionGridWidgetState extends ConsumerState<PrescriptionGridWidget>
     required ValueChanged<String> onChanged,
     required ValueChanged<String> onSelected,
   }) {
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        return RawAutocomplete<String>(
-          key: ValueKey('${hintText}_$initialValue'),
-          initialValue: TextEditingValue(text: initialValue),
-          optionsBuilder: (TextEditingValue textEditingValue) {
-            if (textEditingValue.text.isEmpty) {
-              return options;
-            }
-            return options.where((String option) {
-              return option.toLowerCase().contains(textEditingValue.text.toLowerCase());
-            });
+    return _InlineComboBox(
+      key: ValueKey('${hintText}_$initialValue'),
+      hintText: hintText,
+      initialValue: initialValue,
+      options: options,
+      onChanged: onChanged,
+      onSelected: onSelected,
+    );
+  }
+}
+
+class _InlineComboBox extends StatefulWidget {
+  const _InlineComboBox({
+    super.key,
+    required this.hintText,
+    required this.initialValue,
+    required this.options,
+    required this.onChanged,
+    required this.onSelected,
+  });
+
+  final String hintText;
+  final String initialValue;
+  final List<String> options;
+  final ValueChanged<String> onChanged;
+  final ValueChanged<String> onSelected;
+
+  @override
+  State<_InlineComboBox> createState() => _InlineComboBoxState();
+}
+
+class _InlineComboBoxState extends State<_InlineComboBox> {
+  late TextEditingController _controller;
+  final FocusNode _focusNode = FocusNode();
+  bool _isFocused = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = TextEditingController(text: widget.initialValue);
+    _focusNode.addListener(() {
+      if (mounted) {
+        setState(() {
+          _isFocused = _focusNode.hasFocus;
+        });
+      }
+    });
+  }
+
+  @override
+  void didUpdateWidget(covariant _InlineComboBox oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.initialValue != widget.initialValue && widget.initialValue != _controller.text) {
+      _controller.text = widget.initialValue;
+    }
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    _focusNode.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final query = _controller.text.trim().toLowerCase();
+    final matchingOptions = _isFocused
+        ? widget.options.where((opt) => query.isEmpty || opt.toLowerCase().contains(query)).take(4).toList()
+        : <String>[];
+
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        TextFormField(
+          controller: _controller,
+          focusNode: _focusNode,
+          enableInteractiveSelection: true,
+          scrollPadding: const EdgeInsets.fromLTRB(24, 40, 24, 240),
+          onChanged: (val) {
+            widget.onChanged(val);
+            setState(() {});
           },
-          onSelected: onSelected,
-          fieldViewBuilder: (context, controller, focusNode, onFieldSubmitted) {
-            controller.addListener(() {
-              onChanged(controller.text);
-            });
-            return TextFormField(
-              controller: controller,
-              focusNode: focusNode,
-              enableInteractiveSelection: true,
-              scrollPadding: const EdgeInsets.fromLTRB(24, 40, 24, 240),
-              decoration: InputDecoration(
-                hintText: hintText,
-                contentPadding: const EdgeInsets.symmetric(horizontal: 6, vertical: 8),
-                border: const OutlineInputBorder(),
-                isDense: true,
-                suffixIcon: controller.text.isNotEmpty
-                    ? GestureDetector(
-                        onTap: () {
-                          controller.clear();
-                          onChanged('');
-                        },
-                        child: const Icon(Icons.clear, size: 14),
-                      )
-                    : null,
-                suffixIconConstraints: const BoxConstraints(minWidth: 20, minHeight: 20),
-              ),
-              style: const TextStyle(fontSize: 12),
-            );
-          },
-          optionsViewBuilder: (context, onSelectedOption, options) {
-            return Align(
-              alignment: Alignment.topLeft,
-              child: Material(
-                elevation: 4,
-                borderRadius: BorderRadius.circular(6),
-                child: ConstrainedBox(
-                  constraints: BoxConstraints(
-                    maxWidth: constraints.maxWidth,
-                    maxHeight: 180,
-                  ),
-                  child: ListView.builder(
-                    padding: EdgeInsets.zero,
-                    shrinkWrap: true,
-                    itemCount: options.length,
-                    itemBuilder: (context, index) {
-                      final option = options.elementAt(index);
-                      return ListTile(
-                        dense: true,
-                        title: Text(option, style: const TextStyle(fontSize: 12)),
-                        onTap: () => onSelectedOption(option),
-                      );
+          decoration: InputDecoration(
+            hintText: widget.hintText,
+            contentPadding: const EdgeInsets.symmetric(horizontal: 6, vertical: 8),
+            border: const OutlineInputBorder(),
+            isDense: true,
+            suffixIcon: _controller.text.isNotEmpty
+                ? GestureDetector(
+                    onTap: () {
+                      _controller.clear();
+                      widget.onChanged('');
+                      setState(() {});
                     },
-                  ),
+                    child: const Icon(Icons.clear, size: 14),
+                  )
+                : null,
+            suffixIconConstraints: const BoxConstraints(minWidth: 20, minHeight: 20),
+          ),
+          style: const TextStyle(fontSize: 12),
+        ),
+        if (_isFocused && matchingOptions.isNotEmpty) ...[
+          const SizedBox(height: 4),
+          Container(
+            constraints: const BoxConstraints(maxHeight: 110),
+            decoration: BoxDecoration(
+              color: Theme.of(context).colorScheme.surface,
+              borderRadius: BorderRadius.circular(6),
+              border: Border.all(color: Theme.of(context).colorScheme.outlineVariant),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.08),
+                  blurRadius: 4,
+                  offset: const Offset(0, 2),
                 ),
-              ),
-            );
-          },
-        );
-      },
+              ],
+            ),
+            child: ListView.separated(
+              shrinkWrap: true,
+              padding: EdgeInsets.zero,
+              itemCount: matchingOptions.length,
+              separatorBuilder: (context, index) => const Divider(height: 1),
+              itemBuilder: (context, index) {
+                final opt = matchingOptions[index];
+                return InkWell(
+                  onTap: () {
+                    _controller.text = opt;
+                    widget.onSelected(opt);
+                    _focusNode.unfocus();
+                  },
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                    child: Text(
+                      opt,
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w500,
+                        color: Theme.of(context).colorScheme.primary,
+                      ),
+                    ),
+                  ),
+                );
+              },
+            ),
+          ),
+        ],
+      ],
     );
   }
 }

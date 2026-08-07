@@ -425,22 +425,6 @@ class _PatientQueueScreenState extends ConsumerState<PatientQueueScreen> {
           ],
         ),
       ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: () async {
-          final added = await AddPatientSheet.show(
-            context,
-            doctorId: widget.doctorId,
-            practiceCentreId: widget.practiceCentreId,
-            existingTickets: _tickets,
-          );
-          if (added == true) {
-            _loadQueue();
-          }
-        },
-        icon: const Icon(Icons.person_add_rounded),
-        label: const Text('Add Patient'),
-        backgroundColor: AppColors.accent,
-      ),
     );
   }
 }
