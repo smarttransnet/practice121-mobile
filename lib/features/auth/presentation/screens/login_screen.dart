@@ -41,6 +41,15 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     }
   }
 
+  Future<void> _handleGoogleLogin() async {
+    final controller = ref.read(authControllerProvider.notifier);
+    final success = await controller.loginWithGoogle();
+
+    if (success && mounted) {
+      context.go(AppRoutes.dashboard);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -222,6 +231,79 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                                 fontSize: 16,
                                 fontWeight: FontWeight.bold,
                               ),
+                            ),
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+
+                  // OR Divider
+                  Row(
+                    children: [
+                      Expanded(child: Divider(color: theme.colorScheme.outlineVariant)),
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 16),
+                        child: Text(
+                          'OR',
+                          style: theme.textTheme.labelMedium?.copyWith(
+                            color: theme.colorScheme.onSurfaceVariant,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                      Expanded(child: Divider(color: theme.colorScheme.outlineVariant)),
+                    ],
+                  ),
+                  const SizedBox(height: 20),
+
+                  // Continue with Google Button
+                  SizedBox(
+                    height: 54,
+                    child: OutlinedButton(
+                      onPressed:
+                          authState.isAuthenticating ? null : _handleGoogleLogin,
+                      style: OutlinedButton.styleFrom(
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(16),
+                        ),
+                        side: BorderSide(
+                          color: theme.colorScheme.outline.withValues(alpha: 0.5),
+                        ),
+                      ),
+                      child: authState.isAuthenticating
+                          ? const SizedBox(
+                              width: 24,
+                              height: 24,
+                              child: CircularProgressIndicator(strokeWidth: 2.5),
+                            )
+                          : Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Container(
+                                  width: 24,
+                                  height: 24,
+                                  decoration: const BoxDecoration(
+                                    shape: BoxShape.circle,
+                                    color: Colors.white,
+                                  ),
+                                  child: const Center(
+                                    child: Text(
+                                      'G',
+                                      style: TextStyle(
+                                        color: Color(0xFF4285F4),
+                                        fontWeight: FontWeight.w900,
+                                        fontSize: 16,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(width: 12),
+                                Text(
+                                  'Continue with Google',
+                                  style: theme.textTheme.titleMedium?.copyWith(
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                              ],
                             ),
                     ),
                   ),

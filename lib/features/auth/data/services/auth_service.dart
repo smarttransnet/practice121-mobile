@@ -85,6 +85,84 @@ class AuthService {
     }
   }
 
+  /// Authenticates a doctor using Google [idToken].
+  ///
+  /// Calls `POST /api/auth/google` and returns an [AuthToken].
+  Future<AuthToken> googleLogin({
+    required String baseUrl,
+    required String idToken,
+  }) async {
+    if (idToken.trim().isEmpty) {
+      throw const UnexpectedFailure('Google authentication token is missing.');
+    }
+
+    final uri = Uri.parse('$baseUrl/api/auth/google');
+    AppLogger.i('AuthService: Google login attempt -> $uri');
+
+    try {
+      final response = await http.post(
+        uri,
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({
+          'idToken': idToken,
+        }),
+      );
+
+      if (response.statusCode != 200) {
+        String errorMessage =
+            'This Google account is not registered. Please register through the Web application or contact your administrator.';
+        try {
+          final errBody = jsonDecode(response.body);
+          if (errBody is Map<String, dynamic>) {
+            if (errBody['error'] != null) {
+              final errVal = errBody['error'];
+              if (errVal is Map<String, dynamic> && errVal['message'] != null) {
+                errorMessage = errVal['message'].toString();
+              } else {
+                errorMessage = errVal.toString();
+              }
+            } else if (errBody['detail'] != null) {
+              errorMessage = errBody['detail'].toString();
+            } else if (errBody['message'] != null) {
+              errorMessage = errBody['message'].toString();
+            }
+          }
+        } catch (_) {
+          // ignore non-json body
+        }
+        AppLogger.w('AuthService: Google login failed (${response.statusCode}) — $errorMessage');
+        throw UnexpectedFailure(errorMessage);
+      }
+
+      final data = jsonDecode(response.body) as Map<String, dynamic>;
+
+      if (data['success'] == false) {
+        String errorMessage =
+            'This Google account is not registered. Please register through the Web application or contact your administrator.';
+        final errObj = data['error'];
+        if (errObj is Map<String, dynamic> && errObj['message'] != null) {
+          errorMessage = errObj['message'].toString();
+        } else if (errObj != null) {
+          errorMessage = errObj.toString();
+        }
+        AppLogger.w('AuthService: Google login failed — $errorMessage');
+        throw UnexpectedFailure(errorMessage);
+      }
+
+      final token = AuthToken.fromJson(data);
+
+      AppLogger.i(
+          'AuthService: Google login successful — doctorId=${token.accountId}, name=${token.fullName}');
+      return token;
+    } on Failure {
+      rethrow;
+    } catch (e, stack) {
+      AppLogger.e('AuthService: error during Google login', e, stack);
+      throw UnexpectedFailure(
+          'Unable to connect to authentication server. Please check your connection.');
+    }
+  }
+
   /// Refreshes access token using [refreshToken].
   ///
   /// Calls `POST /api/auth/refresh-token` and returns renewed [AuthToken].

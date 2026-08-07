@@ -1,4 +1,5 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:google_sign_in/google_sign_in.dart';
 
 import '../../../../core/config/app_config.dart';
 import '../../../../core/errors/failures.dart';
@@ -156,6 +157,59 @@ class AuthController extends StateNotifier<AuthState> {
       AppLogger.e('AuthController: login error — $e');
       final message =
           e is Failure ? e.message : 'Invalid email or password. Please try again.';
+      state = state.copyWith(
+        status: AuthStatus.error,
+        errorMessage: message,
+      );
+      return false;
+    }
+  }
+
+  /// Authenticates user using Google Sign-In library and exchanges ID Token with backend.
+  Future<bool> loginWithGoogle() async {
+    state = state.copyWith(
+      status: AuthStatus.authenticating,
+      clearError: true,
+    );
+
+    try {
+      final googleSignIn = GoogleSignIn(
+        scopes: ['email', 'profile'],
+      );
+
+      // Trigger native sign in modal
+      final account = await googleSignIn.signIn();
+      if (account == null) {
+        // User cancelled Google sign-in flow
+        AppLogger.i('AuthController: Google sign-in cancelled by user');
+        state = state.copyWith(status: AuthStatus.unauthenticated);
+        return false;
+      }
+
+      final authDetails = await account.authentication;
+      final idToken = authDetails.idToken;
+
+      if (idToken == null || idToken.isEmpty) {
+        throw const UnexpectedFailure('Could not retrieve authentication token from Google.');
+      }
+
+      final token = await _authService.googleLogin(
+        baseUrl: _config.clientApiBaseUrl,
+        idToken: idToken,
+      );
+
+      await _storageService.saveAuthToken(token);
+
+      state = state.copyWith(
+        status: AuthStatus.authenticated,
+        token: token,
+      );
+      return true;
+    } catch (e) {
+      AppLogger.e('AuthController: Google login error — $e');
+      final message = e is Failure
+          ? e.message
+          : 'This Google account is not registered. Please register through the Web application or contact your administrator.';
       state = state.copyWith(
         status: AuthStatus.error,
         errorMessage: message,
