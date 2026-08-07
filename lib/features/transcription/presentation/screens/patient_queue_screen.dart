@@ -216,35 +216,62 @@ class _PatientQueueScreenState extends ConsumerState<PatientQueueScreen> {
       body: SafeArea(
         child: Column(
           children: [
-            // Top Action Banner with "Start Next Patient" Quick Start button
+            // Top Action Banner with "Add Patient" and "Start Next Patient" Quick Start buttons
             Container(
               padding: const EdgeInsets.all(16),
               color: theme.colorScheme.primaryContainer.withValues(alpha: 0.3),
-              child: Row(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          '${waitingTickets.length} Patients Waiting',
-                          style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
-                        ),
-                        Text(
-                          'Select a patient below or auto-start next',
-                          style: theme.textTheme.bodySmall,
-                        ),
-                      ],
-                    ),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        '${waitingTickets.length} Patients Waiting',
+                        style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
+                      ),
+                      const Text(
+                        'Active Session',
+                        style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: AppColors.accent),
+                      ),
+                    ],
                   ),
-                  FilledButton.icon(
-                    onPressed: waitingTickets.isNotEmpty ? _startNextPatient : null,
-                    icon: const Icon(Icons.play_arrow_rounded),
-                    label: const Text('Start Next Patient'),
-                    style: FilledButton.styleFrom(
-                      backgroundColor: AppColors.accent,
-                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                    ),
+                  const SizedBox(height: 10),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: FilledButton.icon(
+                          onPressed: () async {
+                            final added = await AddPatientSheet.show(
+                              context,
+                              doctorId: widget.doctorId,
+                              practiceCentreId: widget.practiceCentreId,
+                              existingTickets: _tickets,
+                            );
+                            if (added == true) {
+                              _loadQueue();
+                            }
+                          },
+                          icon: const Icon(Icons.person_add_rounded, size: 18),
+                          label: const Text('Add Patient'),
+                          style: FilledButton.styleFrom(
+                            backgroundColor: AppColors.accent,
+                            padding: const EdgeInsets.symmetric(vertical: 10),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: OutlinedButton.icon(
+                          onPressed: waitingTickets.isNotEmpty ? _startNextPatient : null,
+                          icon: const Icon(Icons.play_arrow_rounded, size: 18),
+                          label: const Text('Start Next'),
+                          style: OutlinedButton.styleFrom(
+                            padding: const EdgeInsets.symmetric(vertical: 10),
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
                 ],
               ),
@@ -397,6 +424,22 @@ class _PatientQueueScreenState extends ConsumerState<PatientQueueScreen> {
             ),
           ],
         ),
+      ),
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: () async {
+          final added = await AddPatientSheet.show(
+            context,
+            doctorId: widget.doctorId,
+            practiceCentreId: widget.practiceCentreId,
+            existingTickets: _tickets,
+          );
+          if (added == true) {
+            _loadQueue();
+          }
+        },
+        icon: const Icon(Icons.person_add_rounded),
+        label: const Text('Add Patient'),
+        backgroundColor: AppColors.accent,
       ),
     );
   }

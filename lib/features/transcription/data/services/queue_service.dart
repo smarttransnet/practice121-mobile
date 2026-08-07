@@ -305,5 +305,274 @@ class QueueService {
       throw UnexpectedFailure('Could not add patient to queue: $e');
     }
   }
+
+  /// Sends an OTP to the given [mobileNumber] for patient verification.
+  Future<SendOtpResponse> sendPatientOtp(String mobileNumber) async {
+    final uri = Uri.parse('$_baseUrl/api/patients/otp/send');
+    try {
+      final response = _apiClient != null
+          ? await _apiClient.post(
+              uri,
+              headers: {'Content-Type': 'application/json'},
+              body: jsonEncode({'mobileNumber': mobileNumber}),
+            )
+          : await http.post(
+              uri,
+              headers: {'Content-Type': 'application/json'},
+              body: jsonEncode({'mobileNumber': mobileNumber}),
+            );
+
+      if (response.statusCode == 200) {
+        return SendOtpResponse.fromJson(jsonDecode(response.body) as Map<String, dynamic>);
+      }
+      String message = 'Failed to send OTP.';
+      try {
+        final err = jsonDecode(response.body);
+        if (err is Map<String, dynamic> && err['detail'] != null) {
+          message = err['detail'].toString();
+        }
+      } catch (_) {}
+      throw UnexpectedFailure(message);
+    } on Failure {
+      rethrow;
+    } catch (e) {
+      throw UnexpectedFailure('Failed to send OTP: $e');
+    }
+  }
+
+  /// Verifies an OTP code for a given OTP [sessionId].
+  Future<VerifyOtpResponse> verifyPatientOtp(String sessionId, String otpCode) async {
+    final uri = Uri.parse('$_baseUrl/api/patients/otp/verify');
+    try {
+      final response = _apiClient != null
+          ? await _apiClient.post(
+              uri,
+              headers: {'Content-Type': 'application/json'},
+              body: jsonEncode({'sessionId': sessionId, 'otpCode': otpCode}),
+            )
+          : await http.post(
+              uri,
+              headers: {'Content-Type': 'application/json'},
+              body: jsonEncode({'sessionId': sessionId, 'otpCode': otpCode}),
+            );
+
+      if (response.statusCode == 200) {
+        return VerifyOtpResponse.fromJson(jsonDecode(response.body) as Map<String, dynamic>);
+      }
+      String message = 'Invalid OTP code.';
+      try {
+        final err = jsonDecode(response.body);
+        if (err is Map<String, dynamic> && err['detail'] != null) {
+          message = err['detail'].toString();
+        }
+      } catch (_) {}
+      throw UnexpectedFailure(message);
+    } on Failure {
+      rethrow;
+    } catch (e) {
+      throw UnexpectedFailure('OTP verification failed: $e');
+    }
+  }
+
+  /// Resends OTP for an active [sessionId].
+  Future<bool> resendPatientOtp(String sessionId) async {
+    final uri = Uri.parse('$_baseUrl/api/patients/otp/resend');
+    try {
+      final response = _apiClient != null
+          ? await _apiClient.post(
+              uri,
+              headers: {'Content-Type': 'application/json'},
+              body: jsonEncode({'sessionId': sessionId}),
+            )
+          : await http.post(
+              uri,
+              headers: {'Content-Type': 'application/json'},
+              body: jsonEncode({'sessionId': sessionId}),
+            );
+
+      return response.statusCode == 200;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  /// Retrieves patient details by [mobileNumber], optionally using [verificationToken].
+  Future<PatientLookupResult?> getPatientByMobile(
+    String mobileNumber, {
+    String? verificationToken,
+  }) async {
+    final queryParams = <String, String>{
+      'mobileNumber': mobileNumber,
+      if (verificationToken != null && verificationToken.isNotEmpty)
+        'verificationToken': verificationToken,
+    };
+    final uri = Uri.parse('$_baseUrl/api/patients/by-mobile').replace(queryParameters: queryParams);
+
+    try {
+      final response = _apiClient != null
+          ? await _apiClient.get(uri)
+          : await http.get(uri);
+
+      if (response.statusCode == 200) {
+        return PatientLookupResult.fromJson(jsonDecode(response.body) as Map<String, dynamic>);
+      }
+      return null;
+    } catch (e) {
+      AppLogger.w('QueueService: getPatientByMobile failed: $e');
+      return null;
+    }
+  }
+
+  /// Searches for registered patients by name or NIC.
+  Future<List<PatientRecord>> searchPatients({
+    String? firstName,
+    String? lastName,
+    String? nicNumber,
+  }) async {
+    final queryParams = <String, String>{
+      if (firstName != null && firstName.isNotEmpty) 'firstName': firstName,
+      if (lastName != null && lastName.isNotEmpty) 'lastName': lastName,
+      if (nicNumber != null && nicNumber.isNotEmpty) 'nicNumber': nicNumber,
+    };
+    final uri = Uri.parse('$_baseUrl/api/patients/search').replace(queryParameters: queryParams);
+
+    try {
+      final response = _apiClient != null
+          ? await _apiClient.get(uri)
+          : await http.get(uri);
+
+      if (response.statusCode == 200) {
+        final List list = jsonDecode(response.body);
+        return list.map((item) => PatientRecord.fromJson(item as Map<String, dynamic>)).toList();
+      }
+      return [];
+    } catch (e) {
+      AppLogger.w('QueueService: searchPatients failed: $e');
+      return [];
+    }
+  }
+
+  /// Updates patient mobile number to link existing record.
+  Future<bool> updatePatientMobile(String patientId, String mobileNumber) async {
+    final uri = Uri.parse('$_baseUrl/api/patients/$patientId/mobile');
+    try {
+      final response = _apiClient != null
+          ? await _apiClient.put(
+              uri,
+              headers: {'Content-Type': 'application/json'},
+              body: jsonEncode({'mobileNumber': mobileNumber}),
+            )
+          : await http.put(
+              uri,
+              headers: {'Content-Type': 'application/json'},
+              body: jsonEncode({'mobileNumber': mobileNumber}),
+            );
+      return response.statusCode == 200;
+    } catch (e) {
+      AppLogger.w('QueueService: updatePatientMobile failed: $e');
+      return false;
+    }
+  }
 }
+
+/// Response returned when sending an OTP.
+class SendOtpResponse {
+  const SendOtpResponse({
+    required this.patientExists,
+    this.sessionId,
+    this.maskedMobile,
+    this.expiresInSeconds,
+    this.cooldownSeconds,
+  });
+
+  final bool patientExists;
+  final String? sessionId;
+  final String? maskedMobile;
+  final int? expiresInSeconds;
+  final int? cooldownSeconds;
+
+  factory SendOtpResponse.fromJson(Map<String, dynamic> json) {
+    return SendOtpResponse(
+      patientExists: json['patientExists'] as bool? ?? false,
+      sessionId: json['sessionId']?.toString(),
+      maskedMobile: json['maskedMobile']?.toString(),
+      expiresInSeconds: (json['expiresInSeconds'] as num?)?.toInt(),
+      cooldownSeconds: (json['cooldownSeconds'] as num?)?.toInt(),
+    );
+  }
+}
+
+/// Response returned when verifying an OTP.
+class VerifyOtpResponse {
+  const VerifyOtpResponse({
+    required this.verified,
+    this.verificationToken,
+    this.errorMessage,
+  });
+
+  final bool verified;
+  final String? verificationToken;
+  final String? errorMessage;
+
+  factory VerifyOtpResponse.fromJson(Map<String, dynamic> json) {
+    return VerifyOtpResponse(
+      verified: json['verified'] as bool? ?? false,
+      verificationToken: json['verificationToken']?.toString(),
+      errorMessage: json['errorMessage']?.toString(),
+    );
+  }
+}
+
+/// Lightweight Patient Record model matching backend API.
+class PatientRecord {
+  const PatientRecord({
+    required this.id,
+    required this.firstName,
+    this.lastName,
+    this.nicNumber,
+    required this.mobileNumber,
+    this.gender,
+  });
+
+  final String id;
+  final String firstName;
+  final String? lastName;
+  final String? nicNumber;
+  final String mobileNumber;
+  final String? gender;
+
+  factory PatientRecord.fromJson(Map<String, dynamic> json) {
+    return PatientRecord(
+      id: json['id']?.toString() ?? '',
+      firstName: json['firstName']?.toString() ?? '',
+      lastName: json['lastName']?.toString(),
+      nicNumber: json['nicNumber']?.toString(),
+      mobileNumber: json['mobileNumber']?.toString() ?? '',
+      gender: json['gender']?.toString(),
+    );
+  }
+}
+
+/// Patient Lookup Result containing primary patient and dependents.
+class PatientLookupResult {
+  const PatientLookupResult({
+    required this.primaryPatient,
+    this.children = const [],
+  });
+
+  final PatientRecord primaryPatient;
+  final List<PatientRecord> children;
+
+  factory PatientLookupResult.fromJson(Map<String, dynamic> json) {
+    return PatientLookupResult(
+      primaryPatient: PatientRecord.fromJson(json['primaryPatient'] as Map<String, dynamic>),
+      children: json['children'] != null
+          ? (json['children'] as List)
+              .map((item) => PatientRecord.fromJson(item as Map<String, dynamic>))
+              .toList()
+          : [],
+    );
+  }
+}
+
 
