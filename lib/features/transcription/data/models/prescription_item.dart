@@ -87,12 +87,22 @@ class PrescriptionItem {
   }
 
   factory PrescriptionItem.fromJson(Map<String, dynamic> json) {
+    String? getRawProperty(String key1, String key2) {
+      if (json.containsKey(key1) && json[key1] != null) {
+        return json[key1].toString();
+      }
+      if (json.containsKey(key2) && json[key2] != null) {
+        return json[key2].toString();
+      }
+      return null;
+    }
+
     return PrescriptionItem(
-      genericName: cleanValue(json['GenericName']?.toString() ?? json['genericName']?.toString()),
-      brandName: cleanValue(json['BrandName']?.toString() ?? json['brandName']?.toString()),
-      dose: cleanValue(json['Dose']?.toString() ?? json['dose']?.toString()),
-      frequency: cleanValue(json['Frequency']?.toString() ?? json['frequency']?.toString()),
-      duration: cleanValue(json['Duration']?.toString() ?? json['duration']?.toString()),
+      genericName: getRawProperty('GenericName', 'genericName'),
+      brandName: getRawProperty('BrandName', 'brandName'),
+      dose: getRawProperty('Dose', 'dose'),
+      frequency: getRawProperty('Frequency', 'frequency'),
+      duration: getRawProperty('Duration', 'duration'),
     );
   }
 

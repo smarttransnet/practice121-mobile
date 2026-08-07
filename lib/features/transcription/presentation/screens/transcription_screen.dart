@@ -7,6 +7,7 @@ import '../../../auth/presentation/controllers/auth_controller.dart';
 import '../../data/services/queue_service.dart';
 import '../controllers/transcription_controller.dart';
 import '../controllers/transcription_state.dart';
+import '../widgets/add_patient_sheet.dart';
 import '../widgets/clinical_note_panel.dart';
 import '../widgets/config_sheet.dart';
 import '../widgets/patient_briefing_card.dart';
@@ -193,28 +194,70 @@ class _TranscriptionScreenState extends ConsumerState<TranscriptionScreen> {
                                     Text('Loading patient details...'),
                                   ],
                                 )
-                              : Column(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    const Icon(
-                                      Icons.person_off_outlined,
-                                      size: 48,
-                                      color: Colors.grey,
-                                    ),
-                                    const SizedBox(height: 16),
-                                    const Text(
-                                      'No patient currently active in queue',
-                                      style: TextStyle(
-                                        fontWeight: FontWeight.w600,
+                              : Padding(
+                                  padding: const EdgeInsets.all(24.0),
+                                  child: Column(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Container(
+                                        padding: const EdgeInsets.all(16),
+                                        decoration: BoxDecoration(
+                                          color: AppColors.accent.withValues(alpha: 0.1),
+                                          shape: BoxShape.circle,
+                                        ),
+                                        child: const Icon(
+                                          Icons.people_outline_rounded,
+                                          size: 48,
+                                          color: AppColors.accent,
+                                        ),
                                       ),
-                                    ),
-                                    const SizedBox(height: 16),
-                                    FilledButton.icon(
-                                      onPressed: () => _initInitialPatient(),
-                                      icon: const Icon(Icons.refresh),
-                                      label: const Text('Refresh Queue'),
-                                    ),
-                                  ],
+                                      const SizedBox(height: 16),
+                                      Text(
+                                        'No patients are currently in this session.',
+                                        style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                        textAlign: TextAlign.center,
+                                      ),
+                                      const SizedBox(height: 8),
+                                      Text(
+                                        'Add a patient directly to start or conduct this session.',
+                                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                          color: Theme.of(context).colorScheme.onSurfaceVariant,
+                                        ),
+                                        textAlign: TextAlign.center,
+                                      ),
+                                      const SizedBox(height: 20),
+                                      Row(
+                                        mainAxisAlignment: MainAxisAlignment.center,
+                                        children: [
+                                          FilledButton.icon(
+                                            onPressed: () async {
+                                              final added = await AddPatientSheet.show(
+                                                context,
+                                                doctorId: _effectiveDoctorId,
+                                                practiceCentreId: _effectivePracticeCentreId ?? '',
+                                              );
+                                              if (added == true) {
+                                                await _initInitialPatient();
+                                              }
+                                            },
+                                            icon: const Icon(Icons.person_add_rounded),
+                                            label: const Text('Add Patient'),
+                                            style: FilledButton.styleFrom(
+                                              backgroundColor: AppColors.accent,
+                                            ),
+                                          ),
+                                          const SizedBox(width: 12),
+                                          OutlinedButton.icon(
+                                            onPressed: () => _initInitialPatient(),
+                                            icon: const Icon(Icons.refresh_rounded),
+                                            label: const Text('Refresh'),
+                                          ),
+                                        ],
+                                      ),
+                                    ],
+                                  ),
                                 ),
                         ),
                 ),

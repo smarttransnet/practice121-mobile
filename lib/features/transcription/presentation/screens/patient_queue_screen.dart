@@ -6,6 +6,7 @@ import '../../../../app/router.dart';
 import '../../../../app/theme/app_colors.dart';
 import '../../data/services/queue_service.dart';
 import '../controllers/transcription_controller.dart';
+import '../widgets/add_patient_sheet.dart';
 
 /// Screen displaying the active patient queue for a selected practice centre.
 ///
@@ -191,6 +192,21 @@ class _PatientQueueScreenState extends ConsumerState<PatientQueueScreen> {
         ),
         actions: [
           IconButton(
+            icon: const Icon(Icons.person_add_alt_1_rounded),
+            onPressed: () async {
+              final added = await AddPatientSheet.show(
+                context,
+                doctorId: widget.doctorId,
+                practiceCentreId: widget.practiceCentreId,
+                existingTickets: _tickets,
+              );
+              if (added == true) {
+                _loadQueue();
+              }
+            },
+            tooltip: 'Add Patient',
+          ),
+          IconButton(
             icon: const Icon(Icons.refresh),
             onPressed: _loadQueue,
             tooltip: 'Refresh Queue',
@@ -258,24 +274,67 @@ class _PatientQueueScreenState extends ConsumerState<PatientQueueScreen> {
                           )
                         : waitingTickets.isEmpty
                             ? Center(
-                                child: Column(
-                                  mainAxisAlignment: MainAxisAlignment.center,
-                                  children: [
-                                    const Icon(Icons.check_circle_outline, color: Colors.green, size: 64),
-                                    const SizedBox(height: 16),
-                                    Text(
-                                      'Queue is Empty',
-                                      style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
-                                    ),
-                                    const SizedBox(height: 8),
-                                    const Text('No patients waiting in queue currently.'),
-                                    const SizedBox(height: 20),
-                                    OutlinedButton.icon(
-                                      onPressed: _loadQueue,
-                                      icon: const Icon(Icons.refresh),
-                                      label: const Text('Check Again'),
-                                    ),
-                                  ],
+                                child: SingleChildScrollView(
+                                  padding: const EdgeInsets.all(24),
+                                  child: Column(
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    children: [
+                                      Container(
+                                        padding: const EdgeInsets.all(20),
+                                        decoration: BoxDecoration(
+                                          color: AppColors.accent.withValues(alpha: 0.1),
+                                          shape: BoxShape.circle,
+                                        ),
+                                        child: const Icon(
+                                          Icons.people_outline_rounded,
+                                          color: AppColors.accent,
+                                          size: 56,
+                                        ),
+                                      ),
+                                      const SizedBox(height: 20),
+                                      Text(
+                                        'No patients are currently in this session.',
+                                        style: theme.textTheme.titleMedium?.copyWith(
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                        textAlign: TextAlign.center,
+                                      ),
+                                      const SizedBox(height: 8),
+                                      Text(
+                                        'Add a patient directly to start or conduct this consultation session.',
+                                        style: theme.textTheme.bodyMedium?.copyWith(
+                                          color: theme.colorScheme.onSurfaceVariant,
+                                        ),
+                                        textAlign: TextAlign.center,
+                                      ),
+                                      const SizedBox(height: 24),
+                                      FilledButton.icon(
+                                        onPressed: () async {
+                                          final added = await AddPatientSheet.show(
+                                            context,
+                                            doctorId: widget.doctorId,
+                                            practiceCentreId: widget.practiceCentreId,
+                                            existingTickets: _tickets,
+                                          );
+                                          if (added == true) {
+                                            _loadQueue();
+                                          }
+                                        },
+                                        icon: const Icon(Icons.person_add_rounded),
+                                        label: const Text('Add Patient'),
+                                        style: FilledButton.styleFrom(
+                                          backgroundColor: AppColors.accent,
+                                          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
+                                        ),
+                                      ),
+                                      const SizedBox(height: 12),
+                                      OutlinedButton.icon(
+                                        onPressed: _loadQueue,
+                                        icon: const Icon(Icons.refresh_rounded),
+                                        label: const Text('Refresh Queue'),
+                                      ),
+                                    ],
+                                  ),
                                 ),
                               )
                             : ListView.builder(

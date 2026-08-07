@@ -388,7 +388,7 @@ class _PrescriptionGridWidgetState extends ConsumerState<PrescriptionGridWidget>
           child: TextFormField(
             key: ValueKey('dose_${index}_${item.dose}'),
             initialValue: item.dose ?? '',
-            scrollPadding: const EdgeInsets.all(24),
+            scrollPadding: const EdgeInsets.fromLTRB(24, 40, 24, 180),
             decoration: const InputDecoration(
               hintText: 'e.g. 500mg',
               contentPadding: EdgeInsets.symmetric(horizontal: 6, vertical: 8),
@@ -405,7 +405,7 @@ class _PrescriptionGridWidgetState extends ConsumerState<PrescriptionGridWidget>
           child: TextFormField(
             key: ValueKey('freq_${index}_${item.frequency}'),
             initialValue: item.frequency ?? '',
-            scrollPadding: const EdgeInsets.all(24),
+            scrollPadding: const EdgeInsets.fromLTRB(24, 40, 24, 180),
             decoration: const InputDecoration(
               hintText: 'e.g. BD',
               contentPadding: EdgeInsets.symmetric(horizontal: 6, vertical: 8),
@@ -422,7 +422,7 @@ class _PrescriptionGridWidgetState extends ConsumerState<PrescriptionGridWidget>
           child: TextFormField(
             key: ValueKey('dur_${index}_${item.duration}'),
             initialValue: item.duration ?? '',
-            scrollPadding: const EdgeInsets.all(24),
+            scrollPadding: const EdgeInsets.fromLTRB(24, 40, 24, 180),
             decoration: const InputDecoration(
               hintText: 'e.g. 5 days',
               contentPadding: EdgeInsets.symmetric(horizontal: 6, vertical: 8),
@@ -477,7 +477,7 @@ class _PrescriptionGridWidgetState extends ConsumerState<PrescriptionGridWidget>
             return TextFormField(
               controller: controller,
               focusNode: focusNode,
-              scrollPadding: const EdgeInsets.all(24),
+              scrollPadding: const EdgeInsets.fromLTRB(24, 40, 24, 180),
               decoration: InputDecoration(
                 hintText: hintText,
                 contentPadding: const EdgeInsets.symmetric(horizontal: 6, vertical: 8),

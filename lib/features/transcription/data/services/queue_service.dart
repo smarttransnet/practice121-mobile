@@ -241,4 +241,69 @@ class QueueService {
       throw UnexpectedFailure('Could not reach the queue server: $e');
     }
   }
+
+  /// Adds a new patient queue ticket to the practice centre session queue.
+  Future<String> addPatientQueueTicket({
+    required String patientMobile,
+    required String doctorId,
+    required String practiceCentreId,
+    required int priority,
+    String? visitDate,
+    String? patientId,
+    String? sessionId,
+  }) async {
+    final uri = Uri.parse('$_baseUrl/api/patient-queue');
+    final sanitizedSessionId =
+        (sessionId != null && sessionId != 'ALL' && sessionId.trim().isNotEmpty)
+            ? sessionId
+            : null;
+
+    final bodyMap = <String, dynamic>{
+      'patientMobile': patientMobile,
+      'doctorId': doctorId,
+      'practiceCentreId': practiceCentreId,
+      'priority': priority,
+    };
+    if (visitDate != null && visitDate.isNotEmpty) bodyMap['visitDate'] = visitDate;
+    if (patientId != null && patientId.isNotEmpty) bodyMap['patientId'] = patientId;
+    if (sanitizedSessionId != null) bodyMap['sessionId'] = sanitizedSessionId;
+
+    try {
+      final response = _apiClient != null
+          ? await _apiClient.post(
+              uri,
+              headers: {'Content-Type': 'application/json'},
+              body: jsonEncode(bodyMap),
+            )
+          : await http.post(
+              uri,
+              headers: {'Content-Type': 'application/json'},
+              body: jsonEncode(bodyMap),
+            );
+
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        return response.body.replaceAll('"', '');
+      }
+
+      String message = 'Failed to add patient to queue (${response.statusCode}).';
+      try {
+        final errBody = jsonDecode(response.body);
+        if (errBody is Map<String, dynamic>) {
+          if (errBody['detail'] != null) {
+            message = errBody['detail'].toString();
+          } else if (errBody['error'] != null) {
+            message = errBody['error'].toString();
+          } else if (errBody['message'] != null) {
+            message = errBody['message'].toString();
+          }
+        }
+      } catch (_) {}
+      throw UnexpectedFailure(message);
+    } on Failure {
+      rethrow;
+    } catch (e) {
+      throw UnexpectedFailure('Could not add patient to queue: $e');
+    }
+  }
 }
+
