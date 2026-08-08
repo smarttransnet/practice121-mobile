@@ -23,11 +23,13 @@ class ClinicalNotePanel extends ConsumerWidget {
     required this.note,
     required this.fullTranscript,
     required this.onNewSession,
+    this.keyboardOpen = false,
   });
 
   final String note;
   final String? fullTranscript;
   final VoidCallback onNewSession;
+  final bool keyboardOpen;
 
   static Future<void> show(
     BuildContext context, {
@@ -39,17 +41,32 @@ class ClinicalNotePanel extends ConsumerWidget {
       context: context,
       isScrollControlled: true,
       useSafeArea: true,
-      builder: (_) => DraggableScrollableSheet(
-        initialChildSize: 0.85,
-        minChildSize: 0.5,
-        maxChildSize: 0.95,
-        expand: false,
-        builder: (_, scrollController) => ClinicalNotePanel(
-          note: note,
-          fullTranscript: fullTranscript,
-          onNewSession: onNewSession,
-        ),
-      ),
+      builder: (sheetContext) {
+        final keyboardInset = MediaQuery.viewInsetsOf(sheetContext).bottom;
+        return Padding(
+          padding: EdgeInsets.only(bottom: keyboardInset),
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              final maxHeight = constraints.maxHeight.isFinite
+                  ? constraints.maxHeight
+                  : MediaQuery.sizeOf(context).height;
+              // Sit entirely above the IME. Use full remaining height while
+              // typing so the editor is not crushed to 0px.
+              final sheetHeight =
+                  keyboardInset > 0 ? maxHeight : maxHeight * 0.85;
+              return SizedBox(
+                height: sheetHeight,
+                child: ClinicalNotePanel(
+                  note: note,
+                  fullTranscript: fullTranscript,
+                  onNewSession: onNewSession,
+                  keyboardOpen: keyboardInset > 0,
+                ),
+              );
+            },
+          ),
+        );
+      },
     );
   }
 
@@ -61,17 +78,13 @@ class ClinicalNotePanel extends ConsumerWidget {
     // Use the latest note from state if available (it might have been amended),
     // otherwise fall back to the one passed during initial .show().
     final currentNote = state.processedNote ?? note;
-    final viewInsets = MediaQuery.of(context).viewInsets;
 
     return DefaultTabController(
       length: fullTranscript != null && fullTranscript!.isNotEmpty ? 2 : 1,
       child: SafeArea(
         top: false,
-        child: Padding(
-          padding: EdgeInsets.only(bottom: viewInsets.bottom),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
+        child: Column(
+          children: [
             // Header
             Padding(
               padding: const EdgeInsets.fromLTRB(20, 12, 12, 4),
@@ -176,90 +189,99 @@ class ClinicalNotePanel extends ConsumerWidget {
             const Divider(height: 1),
             const _AmendmentSection(),
 
-            const Divider(height: 1),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
-              child: OutlinedButton.icon(
-                onPressed: state.isSendingSms
-                    ? null
-                    : () async {
-                        final targetPhone =
-                            (state.activePatient?.patientMobile.isNotEmpty ?? false)
-                                ? state.activePatient!.patientMobile
-                                : '0775706080';
-                        try {
-                          await ref
-                              .read(transcriptionControllerProvider.notifier)
-                              .sendPrescriptionViaSms(
-                                mobileNumber: targetPhone,
-                                prescription: _getAsciiPrescriptionForSms(currentNote),
+            // SMS / Close / Finish stay pinned only when the keyboard is closed.
+            // While typing they crush the Expanded editor to 0px and paint under
+            // the IME (see clinical_note_panel_keyboard_test.dart).
+            if (!keyboardOpen) ...[
+              const Divider(height: 1),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
+                child: OutlinedButton.icon(
+                  onPressed: state.isSendingSms
+                      ? null
+                      : () async {
+                          final targetPhone =
+                              (state.activePatient?.patientMobile.isNotEmpty ??
+                                      false)
+                                  ? state.activePatient!.patientMobile
+                                  : '0775706080';
+                          try {
+                            await ref
+                                .read(transcriptionControllerProvider.notifier)
+                                .sendPrescriptionViaSms(
+                                  mobileNumber: targetPhone,
+                                  prescription: _getAsciiPrescriptionForSms(
+                                    currentNote,
+                                  ),
+                                );
+                            if (context.mounted) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: Text(
+                                    'Prescription SMS sent to $targetPhone',
+                                  ),
+                                  backgroundColor: AppColors.success,
+                                ),
                               );
-                          if (context.mounted) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(
-                                content: Text('Prescription SMS sent to $targetPhone'),
-                                backgroundColor: AppColors.success,
-                              ),
-                            );
+                            }
+                          } catch (e) {
+                            if (context.mounted) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: Text('Failed to send SMS: $e'),
+                                  backgroundColor: theme.colorScheme.error,
+                                ),
+                              );
+                            }
                           }
-                        } catch (e) {
-                          if (context.mounted) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(
-                                content: Text('Failed to send SMS: $e'),
-                                backgroundColor: theme.colorScheme.error,
-                              ),
-                            );
-                          }
-                        }
-                      },
-                icon: state.isSendingSms
-                    ? const SizedBox(
-                        width: 16,
-                        height: 16,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      )
-                    : const Icon(Icons.sms_rounded, color: AppColors.accent),
-                label: const Text('Send SMS Prescription'),
-                style: OutlinedButton.styleFrom(
-                  minimumSize: const Size.fromHeight(42),
+                        },
+                  icon: state.isSendingSms
+                      ? const SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Icon(Icons.sms_rounded, color: AppColors.accent),
+                  label: const Text('Send SMS Prescription'),
+                  style: OutlinedButton.styleFrom(
+                    minimumSize: const Size.fromHeight(42),
+                  ),
                 ),
               ),
-            ),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: OutlinedButton.icon(
-                      onPressed: () => Navigator.of(context).pop(),
-                      icon: const Icon(Icons.close_rounded),
-                      label: const Text('Close'),
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: FilledButton.icon(
-                      onPressed: () {
-                        Navigator.of(context).pop();
-                        onNewSession();
-                      },
-                      icon: const Icon(Icons.check_circle_rounded),
-                      label: const Text('Finish Consultation'),
-                      style: FilledButton.styleFrom(
-                        backgroundColor: AppColors.success,
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: OutlinedButton.icon(
+                        onPressed: () => Navigator.of(context).pop(),
+                        icon: const Icon(Icons.close_rounded),
+                        label: const Text('Close'),
                       ),
                     ),
-                  ),
-                ],
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: FilledButton.icon(
+                        onPressed: () {
+                          Navigator.of(context).pop();
+                          onNewSession();
+                        },
+                        icon: const Icon(Icons.check_circle_rounded),
+                        label: const Text('Finish Consultation'),
+                        style: FilledButton.styleFrom(
+                          backgroundColor: AppColors.success,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
               ),
-            ),
+            ],
           ],
         ),
       ),
-    ),
-  );
-}
+    );
+  }
 
   String _extractPrescription(String note) {
     final markers = [
@@ -426,6 +448,7 @@ class _AmendmentSectionState extends ConsumerState<_AmendmentSection> {
           Expanded(
             child: TextField(
               controller: _ctrl,
+              scrollPadding: const EdgeInsets.fromLTRB(20, 40, 20, 80),
               decoration: InputDecoration(
                 hintText: 'Talk or type to edit...',
                 hintStyle: theme.textTheme.bodyMedium?.copyWith(

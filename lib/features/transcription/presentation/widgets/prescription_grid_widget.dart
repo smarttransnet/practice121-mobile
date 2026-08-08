@@ -115,15 +115,18 @@ class _PrescriptionGridWidgetState extends ConsumerState<PrescriptionGridWidget>
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
           child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text(
-                _isEditing ? 'Edit Prescription Grid' : 'Prescription Summary',
-                style: theme.textTheme.titleMedium?.copyWith(
-                  fontWeight: FontWeight.bold,
-                  color: AppColors.accent,
+              Expanded(
+                child: Text(
+                  _isEditing ? 'Edit Prescription Grid' : 'Prescription Summary',
+                  style: theme.textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.bold,
+                    color: AppColors.accent,
+                  ),
+                  overflow: TextOverflow.ellipsis,
                 ),
               ),
+              const SizedBox(width: 8),
               OutlinedButton.icon(
                 onPressed: () {
                   setState(() {
@@ -261,7 +264,7 @@ class _PrescriptionGridWidgetState extends ConsumerState<PrescriptionGridWidget>
   }
 
   Widget _buildGridEditView(BuildContext context, ThemeData theme, List<FavoriteMedicineDto> favorites) {
-    final bottomInset = MediaQuery.of(context).viewInsets.bottom;
+    final keyboardOpen = MediaQuery.viewInsetsOf(context).bottom > 0;
 
     return Column(
       children: [
@@ -269,7 +272,7 @@ class _PrescriptionGridWidgetState extends ConsumerState<PrescriptionGridWidget>
           child: SingleChildScrollView(
             scrollDirection: Axis.vertical,
             keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
-            padding: EdgeInsets.fromLTRB(12, 12, 12, 12 + bottomInset),
+            padding: const EdgeInsets.fromLTRB(12, 12, 12, 24),
             child: Table(
               columnWidths: const {
                 0: FlexColumnWidth(2.2), // Medicine (Generic & Brand)
@@ -301,36 +304,37 @@ class _PrescriptionGridWidgetState extends ConsumerState<PrescriptionGridWidget>
             ),
           ),
         ),
-        Padding(
-          padding: const EdgeInsets.fromLTRB(16, 4, 16, 12),
-          child: Row(
-            children: [
-              Expanded(
-                child: OutlinedButton.icon(
-                  onPressed: _addRow,
-                  icon: const Icon(Icons.add_rounded),
-                  label: const Text('Add Row'),
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: FilledButton.icon(
-                  onPressed: () {
-                    setState(() {
-                      _notifyChanges();
-                      _isEditing = false;
-                    });
-                  },
-                  icon: const Icon(Icons.check_rounded),
-                  label: const Text('Save & View'),
-                  style: FilledButton.styleFrom(
-                    backgroundColor: AppColors.success,
+        if (!keyboardOpen)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 4, 16, 12),
+            child: Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton.icon(
+                    onPressed: _addRow,
+                    icon: const Icon(Icons.add_rounded),
+                    label: const Text('Add Row'),
                   ),
                 ),
-              ),
-            ],
+                const SizedBox(width: 12),
+                Expanded(
+                  child: FilledButton.icon(
+                    onPressed: () {
+                      setState(() {
+                        _notifyChanges();
+                        _isEditing = false;
+                      });
+                    },
+                    icon: const Icon(Icons.check_rounded),
+                    label: const Text('Save & View'),
+                    style: FilledButton.styleFrom(
+                      backgroundColor: AppColors.success,
+                    ),
+                  ),
+                ),
+              ],
+            ),
           ),
-        ),
       ],
     );
   }
