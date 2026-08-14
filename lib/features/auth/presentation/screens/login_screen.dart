@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../../../../app/router.dart';
 import '../controllers/auth_controller.dart';
 import '../controllers/auth_state.dart';
+import '../data/services/auth_storage_service.dart';
 
 /// Doctor Login screen requiring only Email Address and Password.
 class LoginScreen extends ConsumerStatefulWidget {
@@ -19,6 +20,26 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   bool _obscurePassword = true;
+  bool _rememberMe = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadRememberedEmail();
+  }
+
+  Future<void> _loadRememberedEmail() async {
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      final storageService = ref.read(authStorageServiceProvider);
+      final email = await storageService.getRememberedEmail();
+      if (email != null && email.isNotEmpty && mounted) {
+        setState(() {
+          _emailController.text = email;
+          _rememberMe = true;
+        });
+      }
+    });
+  }
 
   @override
   void dispose() {
@@ -37,6 +58,10 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     );
 
     if (success && mounted) {
+      final storageService = ref.read(authStorageServiceProvider);
+      await storageService.saveRememberedEmail(
+        _rememberMe ? _emailController.text.trim() : '',
+      );
       context.go(AppRoutes.dashboard);
     }
   }
@@ -202,7 +227,33 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                       return null;
                     },
                   ),
-                  const SizedBox(height: 32),
+                  const SizedBox(height: 12),
+
+                  // Remember Me Checkbox
+                  Row(
+                    children: [
+                      Checkbox(
+                        value: _rememberMe,
+                        onChanged: (value) {
+                          setState(() {
+                            _rememberMe = value ?? false;
+                          });
+                        },
+                      ),
+                      GestureDetector(
+                        onTap: () {
+                          setState(() {
+                            _rememberMe = !_rememberMe;
+                          });
+                        },
+                        child: Text(
+                          'Remember Email',
+                          style: theme.textTheme.bodyMedium,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 24),
 
                   // Login Button
                   SizedBox(

@@ -82,10 +82,8 @@ class AuthController extends StateNotifier<AuthState> {
 
         if (!bioAuthenticated) {
           AppLogger.w('AuthController: biometric unlock failed/cancelled — falling back to login screen');
-          await _storageService.clearTokens();
           state = state.copyWith(
             status: AuthStatus.unauthenticated,
-            clearToken: true,
           );
           return;
         }

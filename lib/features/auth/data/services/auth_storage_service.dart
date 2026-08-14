@@ -132,4 +132,28 @@ class AuthStorageService {
       AppLogger.e('AuthStorageService: error setting biometric preference', e, stack);
     }
   }
+
+  static const String _keyRememberedEmail = 'auth_remembered_email';
+
+  /// Saves the user's email for the 'Remember Me' feature.
+  Future<void> saveRememberedEmail(String email) async {
+    try {
+      if (email.isEmpty) {
+        await _storage.delete(key: _keyRememberedEmail);
+      } else {
+        await _storage.write(key: _keyRememberedEmail, value: email);
+      }
+    } catch (e) {
+      AppLogger.e('AuthStorageService: failed to save remembered email', e);
+    }
+  }
+
+  /// Retrieves the remembered email.
+  Future<String?> getRememberedEmail() async {
+    try {
+      return await _storage.read(key: _keyRememberedEmail);
+    } catch (e) {
+      return null;
+    }
+  }
 }

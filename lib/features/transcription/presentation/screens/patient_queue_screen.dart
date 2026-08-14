@@ -179,7 +179,12 @@ class _PatientQueueScreenState extends ConsumerState<PatientQueueScreen> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final waitingTickets = _tickets.where((t) => t.status != 4 && t.status != 5).toList();
+    final waitingTickets = _tickets.where((t) => t.status != 5).toList()
+      ..sort((a, b) {
+        if (a.status == 4 && b.status != 4) return 1;
+        if (a.status != 4 && b.status == 4) return -1;
+        return a.queueNumber.compareTo(b.queueNumber);
+      });
 
     return Scaffold(
       appBar: AppBar(
@@ -191,21 +196,6 @@ class _PatientQueueScreenState extends ConsumerState<PatientQueueScreen> {
           ],
         ),
         actions: [
-          IconButton(
-            icon: const Icon(Icons.person_add_alt_1_rounded),
-            onPressed: () async {
-              final added = await AddPatientSheet.show(
-                context,
-                doctorId: widget.doctorId,
-                practiceCentreId: widget.practiceCentreId,
-                existingTickets: _tickets,
-              );
-              if (added == true) {
-                _loadQueue();
-              }
-            },
-            tooltip: 'Add Patient',
-          ),
           IconButton(
             icon: const Icon(Icons.refresh),
             onPressed: _loadQueue,
@@ -239,28 +229,6 @@ class _PatientQueueScreenState extends ConsumerState<PatientQueueScreen> {
                   const SizedBox(height: 10),
                   Row(
                     children: [
-                      Expanded(
-                        child: FilledButton.icon(
-                          onPressed: () async {
-                            final added = await AddPatientSheet.show(
-                              context,
-                              doctorId: widget.doctorId,
-                              practiceCentreId: widget.practiceCentreId,
-                              existingTickets: _tickets,
-                            );
-                            if (added == true) {
-                              _loadQueue();
-                            }
-                          },
-                          icon: const Icon(Icons.person_add_rounded, size: 18),
-                          label: const Text('Add Patient'),
-                          style: FilledButton.styleFrom(
-                            backgroundColor: AppColors.accent,
-                            padding: const EdgeInsets.symmetric(vertical: 10),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 8),
                       Expanded(
                         child: OutlinedButton.icon(
                           onPressed: waitingTickets.isNotEmpty ? _startNextPatient : null,
@@ -370,10 +338,12 @@ class _PatientQueueScreenState extends ConsumerState<PatientQueueScreen> {
                                 itemBuilder: (context, index) {
                                   final ticket = waitingTickets[index];
                                   final isInConsultation = ticket.status == 3;
+                                  final isCompleted = ticket.status == 4;
 
                                   return Card(
-                                    elevation: isInConsultation ? 3 : 1,
+                                    elevation: isInConsultation ? 3 : (isCompleted ? 0 : 1),
                                     margin: const EdgeInsets.only(bottom: 10),
+                                    color: isCompleted ? theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.5) : null,
                                     shape: RoundedRectangleBorder(
                                       borderRadius: BorderRadius.circular(12),
                                       side: isInConsultation
@@ -383,7 +353,9 @@ class _PatientQueueScreenState extends ConsumerState<PatientQueueScreen> {
                                     child: ListTile(
                                       contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                                       leading: CircleAvatar(
-                                        backgroundColor: isInConsultation ? AppColors.accent : theme.colorScheme.primary,
+                                        backgroundColor: isInConsultation
+                                            ? AppColors.accent
+                                            : (isCompleted ? Colors.grey : theme.colorScheme.primary),
                                         radius: 22,
                                         child: Text(
                                           '#${ticket.queueNumber}',
@@ -392,7 +364,11 @@ class _PatientQueueScreenState extends ConsumerState<PatientQueueScreen> {
                                       ),
                                       title: Text(
                                         ticket.patientName,
-                                        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                                        style: TextStyle(
+                                          fontWeight: FontWeight.bold,
+                                          fontSize: 16,
+                                          color: isCompleted ? Colors.grey : null,
+                                        ),
                                       ),
                                       subtitle: Column(
                                         crossAxisAlignment: CrossAxisAlignment.start,
@@ -409,13 +385,15 @@ class _PatientQueueScreenState extends ConsumerState<PatientQueueScreen> {
                                           ),
                                         ],
                                       ),
-                                      trailing: FilledButton(
-                                        onPressed: () => _selectPatient(ticket),
-                                        style: FilledButton.styleFrom(
-                                          backgroundColor: isInConsultation ? Colors.orange : theme.colorScheme.primary,
-                                        ),
-                                        child: Text(isInConsultation ? 'Resume' : 'Start'),
-                                      ),
+                                      trailing: isCompleted
+                                          ? const Icon(Icons.check_circle_rounded, color: Colors.grey, size: 28)
+                                          : FilledButton(
+                                              onPressed: () => _selectPatient(ticket),
+                                              style: FilledButton.styleFrom(
+                                                backgroundColor: isInConsultation ? Colors.orange : theme.colorScheme.primary,
+                                              ),
+                                              child: Text(isInConsultation ? 'Resume' : 'Start'),
+                                            ),
                                     ),
                                   );
                                 },
