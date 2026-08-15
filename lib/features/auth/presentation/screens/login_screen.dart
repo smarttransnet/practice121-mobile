@@ -5,7 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../../../../app/router.dart';
 import '../controllers/auth_controller.dart';
 import '../controllers/auth_state.dart';
-import '../data/services/auth_storage_service.dart';
+import '../../data/services/auth_storage_service.dart';
 
 /// Doctor Login screen requiring only Email Address and Password.
 class LoginScreen extends ConsumerStatefulWidget {
