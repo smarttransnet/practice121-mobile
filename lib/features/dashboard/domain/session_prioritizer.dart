@@ -41,7 +41,7 @@ class SessionPrioritizer {
         final isSpecificDateMatch = group.specificDate == dateStr;
         final isDayOfWeekMatch = group.daysOfWeek.contains(currentDayAbbr);
         
-        if (isSpecificDateMatch || (group.specificDate == null && isDayOfWeekMatch)) {
+        if (isSpecificDateMatch || isDayOfWeekMatch) {
           isScheduledToday = true;
           if (group.timeBlocks.isNotEmpty) {
             todayTimeBlock = group.timeBlocks.first;
