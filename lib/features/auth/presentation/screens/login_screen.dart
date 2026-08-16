@@ -1,11 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../../../app/router.dart';
+import '../../../../core/config/app_config.dart';
 import '../controllers/auth_controller.dart';
 import '../controllers/auth_state.dart';
-import '../data/services/auth_storage_service.dart';
+import '../../data/services/auth_storage_service.dart';
 
 /// Doctor Login screen requiring only Email Address and Password.
 class LoginScreen extends ConsumerStatefulWidget {
@@ -64,6 +66,12 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       );
       context.go(AppRoutes.dashboard);
     }
+  }
+
+  Future<void> _openExternalUrl(String url) async {
+    final uri = Uri.tryParse(url);
+    if (uri == null) return;
+    await launchUrl(uri, mode: LaunchMode.externalApplication);
   }
 
   Future<void> _handleGoogleLogin() async {
@@ -326,39 +334,36 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                               height: 24,
                               child: CircularProgressIndicator(strokeWidth: 2.5),
                             )
-                          : Row(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                Container(
-                                  width: 24,
-                                  height: 24,
-                                  decoration: const BoxDecoration(
-                                    shape: BoxShape.circle,
-                                    color: Colors.white,
-                                  ),
-                                  child: const Center(
-                                    child: Text(
-                                      'G',
-                                      style: TextStyle(
-                                        color: Color(0xFF4285F4),
-                                        fontWeight: FontWeight.w900,
-                                        fontSize: 16,
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                                const SizedBox(width: 12),
-                                Text(
-                                  'Continue with Google',
-                                  style: theme.textTheme.titleMedium?.copyWith(
-                                    fontWeight: FontWeight.w600,
-                                  ),
-                                ),
-                              ],
+                          : Text(
+                              'Continue with Google',
+                              style: theme.textTheme.titleMedium?.copyWith(
+                                fontWeight: FontWeight.w600,
+                              ),
                             ),
                     ),
                   ),
-                  const SizedBox(height: 24),
+                  const SizedBox(height: 28),
+                  Text(
+                    'For licensed clinicians only. Audio, transcripts, and notes '
+                    'are health data processed to draft clinical documentation. '
+                    'AI output is a draft and is not a medical device or a '
+                    'substitute for professional judgement.',
+                    textAlign: TextAlign.center,
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: theme.colorScheme.onSurfaceVariant,
+                      height: 1.4,
+                    ),
+                  ),
+                  if (ref.watch(appConfigProvider).hasPrivacyPolicy) ...[
+                    const SizedBox(height: 8),
+                    TextButton(
+                      onPressed: () => _openExternalUrl(
+                        ref.read(appConfigProvider).privacyPolicyUrl,
+                      ),
+                      child: const Text('Privacy Policy'),
+                    ),
+                  ],
+                  const SizedBox(height: 8),
                 ],
               ),
             ),

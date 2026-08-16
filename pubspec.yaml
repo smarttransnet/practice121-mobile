@@ -2,7 +2,7 @@ name: note365_mobile
 description: "Note365 — Real-time clinical voice transcription mobile app."
 publish_to: 'none'
 
-version: 1.0.0+1
+version: 1.0.1+2
 
 environment:
   sdk: ^3.11.5
@@ -38,6 +38,7 @@ dependencies:
   # ── Persistence & Security ────────────────────────────────────────────────
   path_provider: ^2.1.5
   share_plus: ^11.1.0
+  url_launcher: ^6.3.1
   flutter_secure_storage: ^9.2.4
   local_auth: ^2.3.0
   google_sign_in: ^6.2.2

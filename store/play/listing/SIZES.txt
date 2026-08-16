@@ -1,0 +1,22 @@
+Google Play Console (upload these)
+---------------------------------
+01-play-icon-512.png                  512 x 512    PNG 32-bit (with alpha)   REQUIRED
+02-play-feature-graphic-1024x500.png  1024 x 500   PNG 24-bit (no alpha)     REQUIRED
+
+Phone screenshots (not generated — capture from emulator)
+---------------------------------------------------------
+At least 2 images, each side 320–3840 px, ratio between 1:2 and 2:1
+Recommended: 1080 x 1920
+
+Android launcher (already copied into android/app/src/main/res/mipmap-*)
+----------------------------------------------------------------------
+launcher-mdpi-48.png
+launcher-hdpi-72.png
+launcher-xhdpi-96.png
+launcher-xxhdpi-144.png
+launcher-xxxhdpi-192.png
+adaptive-foreground-mdpi-108.png
+adaptive-foreground-hdpi-162.png
+adaptive-foreground-xhdpi-216.png
+adaptive-foreground-xxhdpi-324.png
+adaptive-foreground-xxxhdpi-432.png

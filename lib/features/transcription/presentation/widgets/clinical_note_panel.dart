@@ -103,9 +103,20 @@ class ClinicalNotePanel extends ConsumerWidget {
                   ),
                   const SizedBox(width: 12),
                   Expanded(
-                    child: Text(
-                      'Clinical Note',
-                      style: theme.textTheme.titleLarge,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Clinical Note',
+                          style: theme.textTheme.titleLarge,
+                        ),
+                        Text(
+                          'AI draft — review before using in care',
+                          style: theme.textTheme.labelSmall?.copyWith(
+                            color: theme.colorScheme.onSurfaceVariant,
+                          ),
+                        ),
+                      ],
                     ),
                   ),
                   IconButton(

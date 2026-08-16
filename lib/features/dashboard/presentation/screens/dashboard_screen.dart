@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../../../app/router.dart';
+import '../../../../core/config/app_config.dart';
 import '../../../auth/presentation/controllers/auth_controller.dart';
 import '../../../auth/presentation/controllers/auth_state.dart';
 import '../controllers/dashboard_controller.dart';
@@ -91,7 +93,14 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
     return result ?? false;
   }
 
+  Future<void> _openExternalUrl(String url) async {
+    final uri = Uri.tryParse(url);
+    if (uri == null) return;
+    await launchUrl(uri, mode: LaunchMode.externalApplication);
+  }
+
   void _showSettingsDialog(BuildContext context, AuthState authState) {
+    final config = ref.read(appConfigProvider);
     showDialog(
       context: context,
       builder: (dialogContext) {
@@ -134,6 +143,23 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                         'Biometric authentication is not supported or configured on this device.',
                         style: TextStyle(color: Colors.grey),
                       ),
+                    ),
+                  if (config.hasPrivacyPolicy)
+                    ListTile(
+                      contentPadding: EdgeInsets.zero,
+                      leading: const Icon(Icons.privacy_tip_outlined),
+                      title: const Text('Privacy Policy'),
+                      onTap: () => _openExternalUrl(config.privacyPolicyUrl),
+                    ),
+                  if (config.hasAccountDeletionUrl)
+                    ListTile(
+                      contentPadding: EdgeInsets.zero,
+                      leading: const Icon(Icons.person_off_outlined),
+                      title: const Text('Delete account'),
+                      subtitle: const Text(
+                        'Request deletion of your Practice121 account and data',
+                      ),
+                      onTap: () => _openExternalUrl(config.accountDeletionUrl),
                     ),
                 ],
               ),

@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../../app/theme/app_colors.dart';
+import '../../../../core/permissions/permission_service.dart';
 import '../../../auth/presentation/controllers/auth_controller.dart';
 import '../../data/services/queue_service.dart';
 import '../controllers/transcription_controller.dart';
@@ -65,7 +66,7 @@ class _TranscriptionScreenState extends ConsumerState<TranscriptionScreen> {
     if (authDocId != null && authDocId.isNotEmpty) {
       return authDocId;
     }
-    return '80d02763-e924-4889-9729-f9c6eaf9b5ea';
+    return '';
   }
 
   String? get _effectivePracticeCentreId => widget.practiceCentreId;
@@ -73,6 +74,25 @@ class _TranscriptionScreenState extends ConsumerState<TranscriptionScreen> {
   Future<void> _handleMicPressed() async {
     final controller = ref.read(transcriptionControllerProvider.notifier);
     final state = ref.read(transcriptionControllerProvider);
+
+    if (!state.isRecording) {
+      if (_effectiveDoctorId.isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Your doctor account could not be identified. Please sign in again.'),
+          ),
+        );
+        return;
+      }
+
+      final alreadyGranted =
+          await ref.read(permissionServiceProvider).isMicrophoneGranted();
+      if (!alreadyGranted) {
+        final accepted =
+            await PermissionService.confirmMicrophoneDisclosure(context);
+        if (!accepted || !mounted) return;
+      }
+    }
 
     // If starting a recording and no patient is active yet, auto-retrieve the first patient in queue
     if (!state.isRecording && state.activePatient == null) {

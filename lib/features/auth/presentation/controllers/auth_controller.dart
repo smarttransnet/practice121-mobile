@@ -171,8 +171,10 @@ class AuthController extends StateNotifier<AuthState> {
     );
 
     try {
+      final serverClientId = _config.googleServerClientId.trim();
       final googleSignIn = GoogleSignIn(
-        scopes: ['email', 'profile'],
+        scopes: const ['email', 'profile'],
+        serverClientId: serverClientId.isEmpty ? null : serverClientId,
       );
 
       // Trigger native sign in modal
