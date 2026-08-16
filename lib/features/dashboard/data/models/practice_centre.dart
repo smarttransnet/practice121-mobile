@@ -37,6 +37,7 @@ class SessionGroup {
     required this.daysOfWeek,
     this.specificDate,
     required this.timeBlocks,
+    this.daysOff = const [],
   });
 
   final String id;
