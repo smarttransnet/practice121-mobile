@@ -128,8 +128,11 @@ class PrescriptionItem {
       }).toList();
     }
     if (raw is String) {
-      final str = raw.trim();
+      var str = raw.trim();
       if (str.isEmpty) return [];
+      str = str.replaceAll(RegExp(r'^```(?:json)?\s*', multiLine: true, caseSensitive: false), '')
+               .replaceAll(RegExp(r'\s*```$', multiLine: true), '')
+               .trim();
       try {
         final decoded = jsonDecode(str);
         if (decoded is List) {

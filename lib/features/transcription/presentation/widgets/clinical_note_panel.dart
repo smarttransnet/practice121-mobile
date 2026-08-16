@@ -10,6 +10,8 @@ import '../../data/models/prescription_item.dart';
 import '../controllers/transcription_controller.dart';
 import 'prescription_grid_widget.dart';
 
+final _editedPrescriptionProvider = StateProvider.autoDispose<String?>((ref) => null);
+
 /// Modal sheet that displays the Gemini-generated clinical note.
 ///
 /// Provides:
@@ -78,6 +80,8 @@ class ClinicalNotePanel extends ConsumerWidget {
     // Use the latest note from state if available (it might have been amended),
     // otherwise fall back to the one passed during initial .show().
     final currentNote = state.processedNote ?? note;
+    final displayNote = currentNote.replaceAll(RegExp(r'```(?:json)?\s*[\s\S]*?\s*```', multiLine: true, caseSensitive: false), '').trim();
+    final editedPrescription = ref.watch(_editedPrescriptionProvider);
 
     return DefaultTabController(
       length: fullTranscript != null && fullTranscript!.isNotEmpty ? 2 : 1,
@@ -128,8 +132,7 @@ class ClinicalNotePanel extends ConsumerWidget {
                               await ref
                                   .read(transcriptionControllerProvider.notifier)
                                   .sendSummaryViaSendGrid(
-                                    prescription:
-                                        _extractPrescription(currentNote),
+                                    prescription: editedPrescription ?? _extractPrescription(currentNote),
                                   );
                               if (context.mounted) {
                                 ScaffoldMessenger.of(context).showSnackBar(
@@ -164,7 +167,7 @@ class ClinicalNotePanel extends ConsumerWidget {
                   ),
                   IconButton(
                     tooltip: 'Share',
-                    onPressed: () => _shareNote(context, currentNote),
+                    onPressed: () => _shareNote(context, currentNote, editedPrescription),
                     icon: const Icon(Icons.ios_share_rounded),
                   ),
                 ],
@@ -184,16 +187,16 @@ class ClinicalNotePanel extends ConsumerWidget {
               child: fullTranscript != null && fullTranscript!.isNotEmpty
                   ? TabBarView(
                       children: [
-                        _NoteBody(text: currentNote),
+                        _NoteBody(text: displayNote),
                         PrescriptionGridWidget(
                           initialRawPrescription: _extractPrescription(currentNote),
                           onPrescriptionChanged: (items, rawJson, sentenceText) {
-                            // Update local or amended note state with new formatted prescription
+                            ref.read(_editedPrescriptionProvider.notifier).state = sentenceText;
                           },
                         ),
                       ],
                     )
-                  : _NoteBody(text: currentNote),
+                  : _NoteBody(text: displayNote),
             ),
 
             // ── Amendment Section (Talk to Edit / Type to Edit) ─────────────
@@ -223,6 +226,7 @@ class ClinicalNotePanel extends ConsumerWidget {
                                   mobileNumber: targetPhone,
                                   prescription: _getAsciiPrescriptionForSms(
                                     currentNote,
+                                    editedPrescription,
                                   ),
                                 );
                             if (context.mounted) {
@@ -317,7 +321,14 @@ class ClinicalNotePanel extends ConsumerWidget {
     return 'No prescription found in note.';
   }
 
-  String _getAsciiPrescriptionForSms(String note) {
+  String _getAsciiPrescriptionForSms(String note, String? editedPrescription) {
+    if (editedPrescription != null && editedPrescription.isNotEmpty) {
+      final items = PrescriptionItem.fromRaw(editedPrescription);
+      if (items.isNotEmpty) {
+        return items.map((i) => i.toSmsAsciiString()).where((s) => s.isNotEmpty).join('\n');
+      }
+      return PrescriptionItem.sanitizeToAscii(editedPrescription);
+    }
     final rawText = _extractPrescription(note);
     final items = PrescriptionItem.fromRaw(rawText);
     if (items.isNotEmpty) {
@@ -326,7 +337,7 @@ class ClinicalNotePanel extends ConsumerWidget {
     return PrescriptionItem.sanitizeToAscii(rawText);
   }
 
-  Future<void> _shareNote(BuildContext context, String currentNote) async {
+  Future<void> _shareNote(BuildContext context, String currentNote, String? editedPrescription) async {
     try {
       final dir = await getTemporaryDirectory();
       final filename =
@@ -340,7 +351,7 @@ class ClinicalNotePanel extends ConsumerWidget {
         ..writeln()
         ..writeln(currentNote);
 
-      final prescription = _extractPrescription(currentNote);
+      final prescription = editedPrescription ?? _extractPrescription(currentNote);
       if (prescription.isNotEmpty &&
           !prescription.startsWith('No prescription')) {
         body
