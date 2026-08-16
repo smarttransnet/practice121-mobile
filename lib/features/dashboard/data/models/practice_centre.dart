@@ -35,12 +35,15 @@ class SessionGroup {
   const SessionGroup({
     required this.id,
     required this.daysOfWeek,
+    this.specificDate,
     required this.timeBlocks,
   });
 
   final String id;
   final List<String> daysOfWeek;
+  final String? specificDate;
   final List<TimeBlock> timeBlocks;
+  final List<String> daysOff;
 
   factory SessionGroup.fromJson(Map<String, dynamic> json) {
     return SessionGroup(
@@ -49,8 +52,13 @@ class SessionGroup {
               ?.map((e) => e.toString().toUpperCase())
               .toList() ??
           [],
+      specificDate: json['specificDate']?.toString(),
       timeBlocks: (json['timeBlocks'] as List<dynamic>?)
               ?.map((e) => TimeBlock.fromJson(e as Map<String, dynamic>))
+              .toList() ??
+          [],
+      daysOff: (json['daysOff'] as List<dynamic>?)
+              ?.map((e) => e.toString())
               .toList() ??
           [],
     );
