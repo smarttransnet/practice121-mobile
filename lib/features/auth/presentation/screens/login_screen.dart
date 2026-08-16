@@ -64,7 +64,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       await storageService.saveRememberedEmail(
         _rememberMe ? _emailController.text.trim() : '',
       );
-      context.go(AppRoutes.dashboard);
+      if (mounted) {
+        context.go(AppRoutes.dashboard);
+      }
     }
   }
 

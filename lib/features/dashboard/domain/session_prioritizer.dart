@@ -32,9 +32,16 @@ class SessionPrioritizer {
       TimeBlock? todayTimeBlock;
       bool isScheduledToday = false;
 
+      final dateStr = now.toIso8601String().split('T').first;
+
       // Search session groups for today's schedule
       for (final group in centre.sessionGroups) {
-        if (group.daysOfWeek.contains(currentDayAbbr)) {
+        if (group.daysOff.contains(dateStr)) continue;
+
+        final isSpecificDateMatch = group.specificDate == dateStr;
+        final isDayOfWeekMatch = group.daysOfWeek.contains(currentDayAbbr);
+        
+        if (isSpecificDateMatch || isDayOfWeekMatch) {
           isScheduledToday = true;
           if (group.timeBlocks.isNotEmpty) {
             todayTimeBlock = group.timeBlocks.first;
@@ -75,7 +82,9 @@ class SessionPrioritizer {
       } else if (centre.sessionGroups.isNotEmpty) {
         // Find next upcoming day label
         final firstGroup = centre.sessionGroups.first;
-        if (firstGroup.daysOfWeek.isNotEmpty) {
+        if (firstGroup.specificDate != null) {
+          timeRangeLabel = 'Scheduled on ${firstGroup.specificDate}';
+        } else if (firstGroup.daysOfWeek.isNotEmpty) {
           timeRangeLabel =
               'Scheduled on ${firstGroup.daysOfWeek.join(', ')}';
         }
