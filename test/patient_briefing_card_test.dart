@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:note365_mobile/features/transcription/data/services/queue_service.dart';
 import 'package:note365_mobile/features/transcription/presentation/widgets/patient_briefing_card.dart';
@@ -6,25 +7,29 @@ import 'package:note365_mobile/features/transcription/presentation/widgets/patie
 void main() {
   group('PatientBriefingCard Widget Tests', () {
     final samplePatient = QueuePatient(
-      id: 'p-101',
+      id: 'ticket-101',
       patientName: 'Komal de Silva',
       queueNumber: 1,
       patientMobile: '+94771234567',
+      patientId: 'patient-guid-101',
     );
 
     testWidgets('renders patient details and queue token correctly',
         (WidgetTester tester) async {
       await tester.pumpWidget(
-        MaterialApp(
-          home: Scaffold(
-            body: PatientBriefingCard(
-              patient: samplePatient,
-              clinicName: 'Health First Clinic',
-              onStartSession: () {},
+        ProviderScope(
+          child: MaterialApp(
+            home: Scaffold(
+              body: PatientBriefingCard(
+                patient: samplePatient,
+                clinicName: 'Health First Clinic',
+                onStartSession: () {},
+              ),
             ),
           ),
         ),
       );
+      await tester.pump();
 
       expect(find.text('Komal de Silva'), findsOneWidget);
       expect(find.text('#1'), findsNWidgets(2)); // Badge and details column
@@ -38,18 +43,21 @@ void main() {
       bool sessionStarted = false;
 
       await tester.pumpWidget(
-        MaterialApp(
-          home: Scaffold(
-            body: PatientBriefingCard(
-              patient: samplePatient,
-              clinicName: 'Health First Clinic',
-              onStartSession: () {
-                sessionStarted = true;
-              },
+        ProviderScope(
+          child: MaterialApp(
+            home: Scaffold(
+              body: PatientBriefingCard(
+                patient: samplePatient,
+                clinicName: 'Health First Clinic',
+                onStartSession: () {
+                  sessionStarted = true;
+                },
+              ),
             ),
           ),
         ),
       );
+      await tester.pump();
 
       await tester.tap(find.text('Start Session'));
       await tester.pump();

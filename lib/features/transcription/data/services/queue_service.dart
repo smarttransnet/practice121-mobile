@@ -28,15 +28,20 @@ class NextPatientResponse {
   final bool hasNextPatient;
 
   factory NextPatientResponse.fromJson(Map<String, dynamic> json) {
+    QueuePatient? parsePatient(String key) {
+      final raw = json[key];
+      if (raw is! Map<String, dynamic>) return null;
+      try {
+        return QueuePatient.fromJson(raw);
+      } on FormatException {
+        // Unlinked patient — treat as missing so callers can show link error.
+        return null;
+      }
+    }
+
     return NextPatientResponse(
-      completedPatient: json['completedPatient'] != null
-          ? QueuePatient.fromJson(
-              json['completedPatient'] as Map<String, dynamic>)
-          : null,
-      activePatient: json['activePatient'] != null
-          ? QueuePatient.fromJson(
-              json['activePatient'] as Map<String, dynamic>)
-          : null,
+      completedPatient: parsePatient('completedPatient'),
+      activePatient: parsePatient('activePatient'),
       remainingQueueCount: (json['remainingQueueCount'] as num?)?.toInt() ?? 0,
       hasNextPatient: json['hasNextPatient'] as bool? ?? false,
     );
@@ -50,19 +55,31 @@ class QueuePatient {
     required this.queueNumber,
     required this.patientName,
     required this.patientMobile,
+    required this.patientId,
   });
 
+  /// Queue ticket ID (not the PatientAccount id).
   final String id;
   final int queueNumber;
   final String patientName;
   final String patientMobile;
 
+  /// Stable Practice121 PatientAccount id — required for an active consultation.
+  final String patientId;
+
   factory QueuePatient.fromJson(Map<String, dynamic> json) {
+    final patientId = json['patientId']?.toString().trim() ?? '';
+    if (patientId.isEmpty) {
+      throw const FormatException(
+        'patientId is required for an active consultation patient.',
+      );
+    }
     return QueuePatient(
       id: json['id']?.toString() ?? '',
       queueNumber: (json['queueNumber'] as num?)?.toInt() ?? 0,
       patientName: json['patientName']?.toString() ?? 'Unknown',
       patientMobile: json['patientMobile']?.toString() ?? '',
+      patientId: patientId,
     );
   }
 }
@@ -77,6 +94,7 @@ class QueueTicket {
     required this.status, // 0: Waiting, 1: Ready, 2: Called, 3: In Consultation, 4: Completed, 5: Cancelled
     required this.priority, // 0: Normal, 1: High, 2: Emergency
     this.sessionName,
+    this.patientId,
   });
 
   final String id;
@@ -87,7 +105,14 @@ class QueueTicket {
   final int priority;
   final String? sessionName;
 
+  /// Stable Practice121 PatientAccount id when the ticket is linked.
+  final String? patientId;
+
+  bool get hasLinkedPatient =>
+      patientId != null && patientId!.trim().isNotEmpty;
+
   factory QueueTicket.fromJson(Map<String, dynamic> json) {
+    final rawPatientId = json['patientId']?.toString().trim();
     return QueueTicket(
       id: json['id']?.toString() ?? '',
       queueNumber: (json['queueNumber'] as num?)?.toInt() ?? (json['queueOrder'] as num?)?.toInt() ?? 1,
@@ -96,6 +121,7 @@ class QueueTicket {
       status: (json['status'] as num?)?.toInt() ?? 0,
       priority: (json['priority'] as num?)?.toInt() ?? 0,
       sessionName: json['sessionName']?.toString() ?? json['sessionLabel']?.toString(),
+      patientId: (rawPatientId == null || rawPatientId.isEmpty) ? null : rawPatientId,
     );
   }
 }

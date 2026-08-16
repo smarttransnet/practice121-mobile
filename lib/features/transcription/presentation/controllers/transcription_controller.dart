@@ -12,6 +12,7 @@ import '../../../../core/permissions/permission_service.dart';
 import '../../data/models/transcription_event.dart';
 import '../../data/repositories/transcription_repository.dart';
 import '../../data/services/audio_capture_service.dart';
+import '../../data/services/clinical_note_fhir_service.dart';
 import '../../data/services/note_amend_service.dart';
 import '../../data/services/note_email_service.dart';
 import '../../data/services/note_sms_service.dart';
@@ -34,6 +35,10 @@ final noteEmailServiceProvider = Provider<NoteEmailService>((ref) {
 
 final noteSmsServiceProvider = Provider<NoteSmsService>((ref) {
   return NoteSmsService();
+});
+
+final clinicalNoteFhirServiceProvider = Provider<ClinicalNoteFhirService>((ref) {
+  return ClinicalNoteFhirService();
 });
 
 final queueServiceProvider = Provider<QueueService>((ref) {
@@ -61,6 +66,7 @@ final transcriptionControllerProvider =
     amendService: ref.read(noteAmendServiceProvider),
     sendGridService: ref.read(noteEmailServiceProvider),
     smsService: ref.read(noteSmsServiceProvider),
+    fhirService: ref.read(clinicalNoteFhirServiceProvider),
     queueService: ref.read(queueServiceProvider),
     config: ref.read(appConfigProvider),
   );
@@ -77,6 +83,7 @@ class TranscriptionController extends StateNotifier<TranscriptionState> with Wid
     required NoteAmendService amendService,
     required NoteEmailService sendGridService,
     required NoteSmsService smsService,
+    required ClinicalNoteFhirService fhirService,
     required QueueService queueService,
     required AppConfig config,
   })  : _permissionService = permissionService,
@@ -84,6 +91,7 @@ class TranscriptionController extends StateNotifier<TranscriptionState> with Wid
         _amendService = amendService,
         _emailService = sendGridService,
         _smsService = smsService,
+        _fhirService = fhirService,
         _queueService = queueService,
         _config = config,
         super(const TranscriptionState()) {
@@ -123,6 +131,7 @@ class TranscriptionController extends StateNotifier<TranscriptionState> with Wid
   final NoteAmendService _amendService;
   final NoteEmailService _emailService;
   final NoteSmsService _smsService;
+  final ClinicalNoteFhirService _fhirService;
   final QueueService _queueService;
   final AppConfig _config;
 
@@ -512,10 +521,76 @@ Practice121
   }
 
   /// Manually sets the active patient for consultation.
+  /// [patient.patientId] is retained for the full consultation lifecycle.
   void setActivePatient(QueuePatient patient) {
+    if (patient.patientId.trim().isEmpty) {
+      state = state.copyWith(
+        errorMessage:
+            'Link or register this patient before starting consultation.',
+      );
+      return;
+    }
     state = state.copyWith(
       activePatient: patient,
       clearError: true,
+    );
+  }
+
+  /// Saves the final clinical note to FHIR via Backend5.
+  /// Uses retained [TranscriptionState.activePatient.patientId].
+  Future<void> saveClinicalNoteToFhir({
+    required String doctorId,
+    required String practiceCentreId,
+    String? clinicName,
+    String? visitDate,
+  }) async {
+    final patient = state.activePatient;
+    final noteText = state.processedNote;
+    if (patient == null) {
+      throw const UnexpectedFailure('No active patient to save clinical note for.');
+    }
+    if (noteText == null || noteText.trim().isEmpty) {
+      throw const UnexpectedFailure('No clinical note available to save.');
+    }
+
+    await _fhirService.saveClinicalNote(
+      url: Uri.parse(_config.fhirNotesUrl),
+      patientId: patient.patientId,
+      doctorId: doctorId,
+      practiceCentreId: practiceCentreId,
+      noteText: noteText,
+      ticketId: patient.id,
+      visitDate: visitDate,
+      clinicName: clinicName,
+      patientName: patient.patientName,
+      patientMobile: patient.patientMobile,
+      fullTranscript: state.fullTranscript,
+      amendmentHistory: state.amendmentHistory,
+    );
+  }
+
+  /// Loads prior clinical notes for the retained active patient.
+  Future<List<ClinicalNoteSummary>> loadPriorClinicalNotes({
+    String? doctorId,
+    String? practiceCentreId,
+  }) async {
+    final patient = state.activePatient;
+    if (patient == null || patient.patientId.trim().isEmpty) {
+      return const [];
+    }
+
+    return _fhirService.listClinicalNotes(
+      baseUrl: Uri.parse(_config.fhirNotesUrl),
+      patientId: patient.patientId,
+      doctorId: doctorId,
+      practiceCentreId: practiceCentreId,
+    );
+  }
+
+  Future<ClinicalNoteDetail> loadClinicalNoteDetail(String documentReferenceId) {
+    final base = _config.fhirNotesUrl.replaceAll(RegExp(r'/+$'), '');
+    return _fhirService.getClinicalNote(
+      url: Uri.parse('$base/$documentReferenceId'),
     );
   }
 
@@ -540,6 +615,13 @@ Practice121
         state = state.copyWith(
           isAdvancingQueue: false,
           activePatient: response.activePatient,
+        );
+      } else if (response.hasNextPatient && response.activePatient == null) {
+        state = state.copyWith(
+          isAdvancingQueue: false,
+          clearActivePatient: true,
+          errorMessage:
+              'The next patient is not linked. Link or register the patient before consultation.',
         );
       } else {
         state = state.copyWith(

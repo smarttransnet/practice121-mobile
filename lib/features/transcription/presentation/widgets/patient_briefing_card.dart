@@ -1,22 +1,129 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+
 import '../../../../app/theme/app_colors.dart';
+import '../../data/services/clinical_note_fhir_service.dart';
 import '../../data/services/queue_service.dart';
+import '../controllers/transcription_controller.dart';
 
 /// Pre-session patient briefing view displayed before the doctor explicitly
 /// taps "Start Session" to begin recording.
-class PatientBriefingCard extends StatelessWidget {
+class PatientBriefingCard extends ConsumerStatefulWidget {
   const PatientBriefingCard({
     super.key,
     required this.patient,
     required this.clinicName,
     required this.onStartSession,
+    this.doctorId,
+    this.practiceCentreId,
     this.isLoading = false,
   });
 
   final QueuePatient patient;
   final String clinicName;
   final VoidCallback onStartSession;
+  final String? doctorId;
+  final String? practiceCentreId;
   final bool isLoading;
+
+  @override
+  ConsumerState<PatientBriefingCard> createState() =>
+      _PatientBriefingCardState();
+}
+
+class _PatientBriefingCardState extends ConsumerState<PatientBriefingCard> {
+  List<ClinicalNoteSummary> _priorNotes = const [];
+  bool _loadingHistory = true;
+  String? _historyError;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadPriorNotes();
+  }
+
+  @override
+  void didUpdateWidget(covariant PatientBriefingCard oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.patient.patientId != widget.patient.patientId) {
+      _loadPriorNotes();
+    }
+  }
+
+  Future<void> _loadPriorNotes() async {
+    setState(() {
+      _loadingHistory = true;
+      _historyError = null;
+    });
+    try {
+      final notes = await ref
+          .read(transcriptionControllerProvider.notifier)
+          .loadPriorClinicalNotes(
+            doctorId: widget.doctorId,
+            practiceCentreId: widget.practiceCentreId,
+          );
+      if (!mounted) return;
+      setState(() {
+        _priorNotes = notes;
+        _loadingHistory = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _historyError = e.toString().replaceAll('Exception: ', '');
+        _loadingHistory = false;
+      });
+    }
+  }
+
+  Future<void> _openNote(ClinicalNoteSummary summary) async {
+    try {
+      final detail = await ref
+          .read(transcriptionControllerProvider.notifier)
+          .loadClinicalNoteDetail(summary.id);
+      if (!mounted) return;
+      await showModalBottomSheet<void>(
+        context: context,
+        isScrollControlled: true,
+        builder: (context) {
+          return DraggableScrollableSheet(
+            expand: false,
+            initialChildSize: 0.75,
+            minChildSize: 0.4,
+            maxChildSize: 0.95,
+            builder: (context, controller) {
+              return Padding(
+                padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
+                child: ListView(
+                  controller: controller,
+                  children: [
+                    Text(
+                      summary.visitDate ?? summary.createdAt ?? 'Prior note',
+                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                            fontWeight: FontWeight.bold,
+                          ),
+                    ),
+                    if (summary.clinicName != null &&
+                        summary.clinicName!.isNotEmpty) ...[
+                      const SizedBox(height: 4),
+                      Text(summary.clinicName!),
+                    ],
+                    const SizedBox(height: 12),
+                    SelectableText(detail.noteText),
+                  ],
+                ),
+              );
+            },
+          );
+        },
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Could not open note: $e')),
+      );
+    }
+  }
 
   String _getGreeting() {
     final hour = DateTime.now().hour;
@@ -33,6 +140,7 @@ class PatientBriefingCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final sessionLabel = _getGreeting();
+    final patient = widget.patient;
 
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
@@ -41,11 +149,12 @@ class PatientBriefingCard extends StatelessWidget {
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              // ── Top Session Info Badge ─────────────────────────────────────
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                 decoration: BoxDecoration(
-                  color: theme.colorScheme.primaryContainer.withValues(alpha: 0.35),
+                  color: theme.colorScheme.primaryContainer
+                      .withValues(alpha: 0.35),
                   borderRadius: BorderRadius.circular(20),
                   border: Border.all(
                     color: theme.colorScheme.primary.withValues(alpha: 0.25),
@@ -61,7 +170,7 @@ class PatientBriefingCard extends StatelessWidget {
                     ),
                     const SizedBox(width: 8),
                     Text(
-                      '$sessionLabel • $clinicName',
+                      '$sessionLabel • ${widget.clinicName}',
                       style: theme.textTheme.labelMedium?.copyWith(
                         color: theme.colorScheme.primary,
                         fontWeight: FontWeight.w600,
@@ -70,10 +179,7 @@ class PatientBriefingCard extends StatelessWidget {
                   ],
                 ),
               ),
-
               const SizedBox(height: 24),
-
-              // ── Main Patient Briefing Card ──────────────────────────────────
               Card(
                 elevation: 4,
                 shadowColor: theme.colorScheme.primary.withValues(alpha: 0.15),
@@ -88,7 +194,6 @@ class PatientBriefingCard extends StatelessWidget {
                   padding: const EdgeInsets.all(24),
                   child: Column(
                     children: [
-                      // Avatar & Queue Badge
                       Stack(
                         alignment: Alignment.center,
                         children: [
@@ -99,8 +204,10 @@ class PatientBriefingCard extends StatelessWidget {
                               shape: BoxShape.circle,
                               gradient: LinearGradient(
                                 colors: [
-                                  theme.colorScheme.primary.withValues(alpha: 0.15),
-                                  theme.colorScheme.secondary.withValues(alpha: 0.10),
+                                  theme.colorScheme.primary
+                                      .withValues(alpha: 0.15),
+                                  theme.colorScheme.secondary
+                                      .withValues(alpha: 0.10),
                                 ],
                               ),
                             ),
@@ -121,14 +228,6 @@ class PatientBriefingCard extends StatelessWidget {
                               decoration: BoxDecoration(
                                 color: theme.colorScheme.primary,
                                 borderRadius: BorderRadius.circular(12),
-                                boxShadow: [
-                                  BoxShadow(
-                                    color: theme.colorScheme.primary
-                                        .withValues(alpha: 0.3),
-                                    blurRadius: 6,
-                                    offset: const Offset(0, 2),
-                                  ),
-                                ],
                               ),
                               child: Text(
                                 '#${patient.queueNumber}',
@@ -142,10 +241,7 @@ class PatientBriefingCard extends StatelessWidget {
                           ),
                         ],
                       ),
-
                       const SizedBox(height: 20),
-
-                      // Patient Name
                       Text(
                         patient.patientName,
                         textAlign: TextAlign.center,
@@ -154,10 +250,7 @@ class PatientBriefingCard extends StatelessWidget {
                           color: theme.colorScheme.onSurface,
                         ),
                       ),
-
                       const SizedBox(height: 6),
-
-                      // Mobile Phone
                       if (patient.patientMobile.isNotEmpty) ...[
                         Row(
                           mainAxisAlignment: MainAxisAlignment.center,
@@ -179,10 +272,7 @@ class PatientBriefingCard extends StatelessWidget {
                         ),
                         const SizedBox(height: 16),
                       ],
-
                       const Divider(height: 24),
-
-                      // Consultation Details Row
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceAround,
                         children: [
@@ -196,7 +286,7 @@ class PatientBriefingCard extends StatelessWidget {
                             width: 1,
                             color: theme.dividerColor,
                           ),
-                          _DetailColumn(
+                          const _DetailColumn(
                             icon: Icons.medical_information_outlined,
                             label: 'Status',
                             value: 'Ready',
@@ -208,23 +298,68 @@ class PatientBriefingCard extends StatelessWidget {
                   ),
                 ),
               ),
-
-              const SizedBox(height: 32),
-
-              // ── Prominent Start Session Action Button ──────────────────────
+              const SizedBox(height: 20),
+              Align(
+                alignment: Alignment.centerLeft,
+                child: Text(
+                  'Prior clinical notes',
+                  style: theme.textTheme.titleSmall?.copyWith(
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 8),
+              if (_loadingHistory)
+                const Padding(
+                  padding: EdgeInsets.symmetric(vertical: 12),
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                )
+              else if (_historyError != null)
+                Text(
+                  _historyError!,
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: theme.colorScheme.error,
+                  ),
+                )
+              else if (_priorNotes.isEmpty)
+                Text(
+                  'No prior notes for this patient.',
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
+                )
+              else
+                ..._priorNotes.take(5).map(
+                  (note) => Card(
+                    margin: const EdgeInsets.only(bottom: 8),
+                    child: ListTile(
+                      title: Text(
+                        note.visitDate ?? note.createdAt ?? 'Clinical note',
+                        style: const TextStyle(fontWeight: FontWeight.w600),
+                      ),
+                      subtitle: Text(
+                        note.preview ?? '',
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      trailing: const Icon(Icons.chevron_right),
+                      onTap: () => _openNote(note),
+                    ),
+                  ),
+                ),
+              const SizedBox(height: 24),
               SizedBox(
                 width: double.infinity,
                 height: 56,
                 child: FilledButton(
-                  onPressed: isLoading ? null : onStartSession,
+                  onPressed: widget.isLoading ? null : widget.onStartSession,
                   style: FilledButton.styleFrom(
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(16),
                     ),
                     elevation: 3,
-                    shadowColor: theme.colorScheme.primary.withValues(alpha: 0.4),
                   ),
-                  child: isLoading
+                  child: widget.isLoading
                       ? const SizedBox(
                           width: 24,
                           height: 24,
@@ -236,10 +371,7 @@ class PatientBriefingCard extends StatelessWidget {
                       : Row(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
-                            const Icon(
-                              Icons.play_arrow_rounded,
-                              size: 28,
-                            ),
+                            const Icon(Icons.play_arrow_rounded, size: 28),
                             const SizedBox(width: 10),
                             Text(
                               'Start Session',
@@ -253,9 +385,7 @@ class PatientBriefingCard extends StatelessWidget {
                         ),
                 ),
               ),
-
               const SizedBox(height: 12),
-
               Text(
                 'Tap to begin patient consultation and open recording controls',
                 textAlign: TextAlign.center,

@@ -15,6 +15,7 @@ class AppConfig {
     required this.amendUrl,
     required this.emailUrl,
     required this.smsUrl,
+    required this.fhirNotesUrl,
     required this.clientApiBaseUrl,
     required this.googleServerClientId,
     required this.privacyPolicyUrl,
@@ -53,6 +54,9 @@ class AppConfig {
   /// REST endpoint for `/notes/sms` (POST summary).
   final String smsUrl;
 
+  /// REST endpoint for `/notes/fhir` (POST save / GET list).
+  final String fhirNotesUrl;
+
   /// Loads configuration from `--dart-define` environment, falling back to
   /// the production Cloud Run URL used by the React frontend.
   factory AppConfig.fromEnvironment() {
@@ -86,6 +90,12 @@ class AppConfig {
           'https://note365-stt-api-687271578749.asia-southeast1.run.app/notes/sms',
     );
 
+    const fhirNotesUrl = String.fromEnvironment(
+      'FHIR_NOTES_URL',
+      defaultValue:
+          'https://note365-stt-api-687271578749.asia-southeast1.run.app/notes/fhir',
+    );
+
     const clientApiBaseUrl = String.fromEnvironment(
       'CLIENT_API_BASE_URL',
       defaultValue:
@@ -110,6 +120,7 @@ class AppConfig {
     AppLogger.i('AppConfig: amendUrl=$amendUrl');
     AppLogger.i('AppConfig: emailUrl=$emailUrl');
     AppLogger.i('AppConfig: smsUrl=$smsUrl');
+    AppLogger.i('AppConfig: fhirNotesUrl=$fhirNotesUrl');
     AppLogger.i(
       'AppConfig: googleServerClientId=${googleServerClientId.isEmpty ? '(unset)' : '(set)'}',
     );
@@ -121,6 +132,7 @@ class AppConfig {
       amendUrl: amendUrl,
       emailUrl: emailUrl,
       smsUrl: smsUrl,
+      fhirNotesUrl: fhirNotesUrl,
       googleServerClientId: googleServerClientId,
       privacyPolicyUrl: privacyPolicyUrl,
       accountDeletionUrl: accountDeletionUrl,

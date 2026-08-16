@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../../app/theme/app_colors.dart';
+import '../../../../core/errors/failures.dart';
 import '../../../../core/permissions/permission_service.dart';
 import '../../../auth/presentation/controllers/auth_controller.dart';
 import '../../data/services/queue_service.dart';
@@ -109,6 +110,32 @@ class _TranscriptionScreenState extends ConsumerState<TranscriptionScreen> {
     final state = ref.read(transcriptionControllerProvider);
     final controller = ref.read(transcriptionControllerProvider.notifier);
 
+    // Persist final (possibly amended) clinical note to FHIR before reset.
+    if (state.activePatient != null &&
+        (state.processedNote?.trim().isNotEmpty ?? false)) {
+      try {
+        final now = DateTime.now();
+        final todayStr =
+            '${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}';
+        await controller.saveClinicalNoteToFhir(
+          doctorId: _effectiveDoctorId,
+          practiceCentreId: _effectivePracticeCentreId ?? '',
+          clinicName: widget.clinicName,
+          visitDate: todayStr,
+        );
+      } catch (e) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              e is Failure ? e.message : 'Could not save clinical note to FHIR.',
+            ),
+          ),
+        );
+        return; // Do not complete consultation if FHIR save failed.
+      }
+    }
+
     if (state.activePatient != null) {
       final queueService = ref.read(queueServiceProvider);
       await queueService.updateTicketStatus(state.activePatient!.id, 4); // 4: Completed
@@ -197,6 +224,8 @@ class _TranscriptionScreenState extends ConsumerState<TranscriptionScreen> {
                       ? PatientBriefingCard(
                           patient: state.activePatient!,
                           clinicName: widget.clinicName ?? 'Practice121',
+                          doctorId: _effectiveDoctorId,
+                          practiceCentreId: _effectivePracticeCentreId,
                           isLoading: state.isAdvancingQueue,
                           onStartSession: () {
                             setState(() {

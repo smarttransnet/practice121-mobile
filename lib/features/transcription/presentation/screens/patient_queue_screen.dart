@@ -82,6 +82,12 @@ class _PatientQueueScreenState extends ConsumerState<PatientQueueScreen> {
 
     if (!mounted) return;
 
+    final error = ref.read(transcriptionControllerProvider).errorMessage;
+    if (error != null && error.isNotEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(error)));
+      return;
+    }
+
     if (res != null && res.hasNextPatient && res.activePatient != null) {
       context.push(
         AppRoutes.transcription,
@@ -102,9 +108,32 @@ class _PatientQueueScreenState extends ConsumerState<PatientQueueScreen> {
     final controller = ref.read(transcriptionControllerProvider.notifier);
     final queueService = ref.read(queueServiceProvider);
 
+    if (!ticket.hasLinkedPatient) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Link or register this patient before starting consultation.',
+          ),
+        ),
+      );
+      return;
+    }
+
     // Update status to In Consultation (3) if waiting
     if (ticket.status < 3) {
-      await queueService.updateTicketStatus(ticket.id, 3);
+      final updated = await queueService.updateTicketStatus(ticket.id, 3);
+      if (!updated) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Could not start consultation. Ensure the patient is linked.',
+            ),
+          ),
+        );
+        return;
+      }
     }
 
     controller.setActivePatient(QueuePatient(
@@ -112,6 +141,7 @@ class _PatientQueueScreenState extends ConsumerState<PatientQueueScreen> {
       queueNumber: ticket.queueNumber,
       patientName: ticket.patientName,
       patientMobile: ticket.patientMobile,
+      patientId: ticket.patientId!,
     ));
 
     if (!mounted) return;
