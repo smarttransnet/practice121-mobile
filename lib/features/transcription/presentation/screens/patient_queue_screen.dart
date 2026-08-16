@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../../../app/router.dart';
 import '../../../../app/theme/app_colors.dart';
+import '../../../../core/config/app_config.dart';
 import '../../data/services/queue_service.dart';
 import '../controllers/transcription_controller.dart';
 import '../widgets/add_patient_sheet.dart';
@@ -154,6 +155,66 @@ class _PatientQueueScreenState extends ConsumerState<PatientQueueScreen> {
         'clinicName': widget.clinicName,
       },
     ).then((_) => _loadQueue());
+  }
+
+  Future<void> _viewSavedNote(String patientId) async {
+    try {
+      final fhirService = ref.read(clinicalNoteFhirServiceProvider);
+      final config = ref.read(appConfigProvider);
+      final notes = await fhirService.listClinicalNotes(
+        baseUrl: Uri.parse(config.fhirNotesUrl),
+        patientId: patientId,
+      );
+      
+      if (notes.isEmpty) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('No notes found for this patient.')),
+        );
+        return;
+      }
+      
+      final detail = await ref
+          .read(transcriptionControllerProvider.notifier)
+          .loadClinicalNoteDetail(notes.first.id);
+          
+      if (!mounted) return;
+      await showModalBottomSheet<void>(
+        context: context,
+        isScrollControlled: true,
+        builder: (context) {
+          return DraggableScrollableSheet(
+            expand: false,
+            initialChildSize: 0.75,
+            minChildSize: 0.4,
+            maxChildSize: 0.95,
+            builder: (context, controller) {
+              return Padding(
+                padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
+                child: ListView(
+                  controller: controller,
+                  children: [
+                    Text(
+                      'Saved Note (${notes.first.createdAt ?? ""})',
+                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                            fontWeight: FontWeight.bold,
+                          ),
+                    ),
+                    const SizedBox(height: 12),
+                    SelectableText(detail.noteText),
+                  ],
+                ),
+              );
+            },
+          );
+        },
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error loading note: $e')),
+      );
+    }
   }
 
   Widget _buildPriorityChip(int priority) {
@@ -416,7 +477,20 @@ class _PatientQueueScreenState extends ConsumerState<PatientQueueScreen> {
                                         ],
                                       ),
                                       trailing: isCompleted
-                                          ? const Icon(Icons.check_circle_rounded, color: Colors.grey, size: 28)
+                                          ? Row(
+                                              mainAxisSize: MainAxisSize.min,
+                                              children: [
+                                                TextButton.icon(
+                                                  onPressed: ticket.patientId != null
+                                                      ? () => _viewSavedNote(ticket.patientId!)
+                                                      : null,
+                                                  icon: const Icon(Icons.description, size: 20),
+                                                  label: const Text('View Note'),
+                                                ),
+                                                const SizedBox(width: 8),
+                                                const Icon(Icons.check_circle_rounded, color: Colors.grey, size: 28),
+                                              ],
+                                            )
                                           : FilledButton(
                                               onPressed: () => _selectPatient(ticket),
                                               style: FilledButton.styleFrom(

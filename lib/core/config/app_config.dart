@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/logging/app_logger.dart';
@@ -58,48 +59,56 @@ class AppConfig {
   final String fhirNotesUrl;
 
   /// Loads configuration from `--dart-define` environment, falling back to
-  /// the production Cloud Run URL used by the React frontend.
+  /// the production Cloud Run URL used by the React frontend if in release mode,
+  /// or localhost if in debug mode.
   factory AppConfig.fromEnvironment() {
     const wsUrl = String.fromEnvironment(
       'TRANSCRIPTION_WS_URL',
-      defaultValue:
-          'wss://note365-stt-api-687271578749.asia-southeast1.run.app/ws/transcribe',
+      defaultValue: kDebugMode
+          ? 'ws://localhost:5005/ws/transcribe'
+          : 'wss://note365-stt-api-687271578749.asia-southeast1.run.app/ws/transcribe',
     );
 
     const voiceCommandWsUrl = String.fromEnvironment(
       'VOICE_COMMAND_WS_URL',
-      defaultValue:
-          'wss://note365-stt-api-687271578749.asia-southeast1.run.app/ws/transcribe-command',
+      defaultValue: kDebugMode
+          ? 'ws://localhost:5005/ws/transcribe-command'
+          : 'wss://note365-stt-api-687271578749.asia-southeast1.run.app/ws/transcribe-command',
     );
 
     const amendUrl = String.fromEnvironment(
       'AMEND_URL',
-      defaultValue:
-          'https://note365-stt-api-687271578749.asia-southeast1.run.app/notes/amend',
+      defaultValue: kDebugMode
+          ? 'http://localhost:5005/notes/amend'
+          : 'https://note365-stt-api-687271578749.asia-southeast1.run.app/notes/amend',
     );
 
     const emailUrl = String.fromEnvironment(
       'EMAIL_URL',
-      defaultValue:
-          'https://note365-stt-api-687271578749.asia-southeast1.run.app/notes/email',
+      defaultValue: kDebugMode
+          ? 'http://localhost:5005/notes/email'
+          : 'https://note365-stt-api-687271578749.asia-southeast1.run.app/notes/email',
     );
 
     const smsUrl = String.fromEnvironment(
       'SMS_URL',
-      defaultValue:
-          'https://note365-stt-api-687271578749.asia-southeast1.run.app/notes/sms',
+      defaultValue: kDebugMode
+          ? 'http://localhost:5005/notes/sms'
+          : 'https://note365-stt-api-687271578749.asia-southeast1.run.app/notes/sms',
     );
 
     const fhirNotesUrl = String.fromEnvironment(
       'FHIR_NOTES_URL',
-      defaultValue:
-          'https://note365-stt-api-687271578749.asia-southeast1.run.app/notes/fhir',
+      defaultValue: kDebugMode
+          ? 'http://localhost:5005/notes/fhir'
+          : 'https://note365-stt-api-687271578749.asia-southeast1.run.app/notes/fhir',
     );
 
     const clientApiBaseUrl = String.fromEnvironment(
       'CLIENT_API_BASE_URL',
-      defaultValue:
-          'https://practice121-api-687271578749.asia-southeast1.run.app',
+      defaultValue: kDebugMode
+          ? 'http://localhost:5000'
+          : 'https://practice121-api-687271578749.asia-southeast1.run.app',
     );
 
     const googleServerClientId = String.fromEnvironment(

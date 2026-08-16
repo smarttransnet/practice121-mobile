@@ -132,9 +132,8 @@ class QueueService {
 
   final ApiClient? _apiClient;
 
-  /// Base URL of the Practice121 Client-API.
   static const String _baseUrl =
-      'https://practice121-api-687271578749.asia-southeast1.run.app';
+      'http://localhost:5000';
 
   /// Fetches active queue tickets for the selected practice centre.
   Future<List<QueueTicket>> fetchQueueTickets({
@@ -182,7 +181,7 @@ class QueueService {
               headers: {'Content-Type': 'application/json'},
               body: jsonEncode({'status': status}),
             );
-      return response.statusCode == 200;
+      return response.statusCode == 200 || response.statusCode == 204;
     } catch (e) {
       AppLogger.w('QueueService: update ticket status failed: $e');
       return false;
