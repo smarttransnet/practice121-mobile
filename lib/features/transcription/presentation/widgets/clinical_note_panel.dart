@@ -10,10 +10,7 @@ import '../../data/models/prescription_item.dart';
 import '../controllers/transcription_controller.dart';
 import 'prescription_grid_widget.dart';
 
-final _editedPrescriptionProvider = StateProvider.autoDispose<String?>((ref) => null);
-
 /// Modal sheet that displays the Gemini-generated clinical note.
-///
 /// Provides:
 ///   • Copy to clipboard
 ///   • Share via the OS share sheet (saves to a .txt file first)
@@ -81,7 +78,7 @@ class ClinicalNotePanel extends ConsumerWidget {
     // otherwise fall back to the one passed during initial .show().
     final currentNote = state.processedNote ?? note;
     final displayNote = currentNote.replaceAll(RegExp(r'```(?:json)?\s*[\s\S]*?\s*```', multiLine: true, caseSensitive: false), '').trim();
-    final editedPrescription = ref.watch(_editedPrescriptionProvider);
+    final editedPrescription = state.editedPrescription;
 
     return DefaultTabController(
       length: fullTranscript != null && fullTranscript!.isNotEmpty ? 2 : 1,
@@ -167,7 +164,7 @@ class ClinicalNotePanel extends ConsumerWidget {
                   ),
                   IconButton(
                     tooltip: 'Share',
-                    onPressed: () => _shareNote(context, currentNote, editedPrescription),
+                    onPressed: () => _shareNote(context, displayNote, editedPrescription),
                     icon: const Icon(Icons.ios_share_rounded),
                   ),
                 ],
@@ -191,7 +188,7 @@ class ClinicalNotePanel extends ConsumerWidget {
                         PrescriptionGridWidget(
                           initialRawPrescription: _extractPrescription(currentNote),
                           onPrescriptionChanged: (items, rawJson, sentenceText) {
-                            ref.read(_editedPrescriptionProvider.notifier).state = sentenceText;
+                            ref.read(transcriptionControllerProvider.notifier).updatePrescription(sentenceText);
                           },
                         ),
                       ],

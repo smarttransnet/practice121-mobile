@@ -271,6 +271,40 @@ class TranscriptionController extends StateNotifier<TranscriptionState> with Wid
     }
   }
 
+  /// Strips the trailing JSON block from the LLM response.
+  String _stripJsonBlock(String text) {
+    return text.replaceAll(RegExp(r'```(?:json)?\s*[\s\S]*?\s*```', multiLine: true, caseSensitive: false), '').trim();
+  }
+
+  /// Updates the prescription section of the processed note with the edited version.
+  void updatePrescription(String? text) {
+    state = state.copyWith(editedPrescription: text);
+    
+    if (text == null || state.processedNote == null) return;
+    final note = state.processedNote!;
+    
+    final markers = [
+      '**Doctor Prescription**',
+      'DOCTOR PRESCRIPTION',
+      'Doctor Prescription:',
+      'Doctor Prescription',
+    ];
+    String? markerFound;
+    int index = -1;
+    for (final marker in markers) {
+      index = note.indexOf(marker);
+      if (index != -1) {
+        markerFound = marker;
+        break;
+      }
+    }
+    
+    if (index != -1 && markerFound != null) {
+      final before = note.substring(0, index + markerFound.length);
+      state = state.copyWith(processedNote: '$before\n\n$text');
+    }
+  }
+
   /// Update the prompt that will be sent on the next start.
   void updatePrompt(String? prompt) {
     state = state.copyWith(
@@ -447,7 +481,7 @@ class TranscriptionController extends StateNotifier<TranscriptionState> with Wid
       return;
     }
 
-    final originalNote = state.originalProcessedNote ?? note;
+    final originalNote = _stripJsonBlock(state.originalProcessedNote ?? note);
     final amendments = state.amendmentHistory.isEmpty
         ? 'None'
         : state.amendmentHistory.join('\n- ');
@@ -546,7 +580,7 @@ Practice121
     String? visitDate,
   }) async {
     final patient = state.activePatient;
-    final noteText = state.processedNote;
+    String? noteText = state.processedNote;
     if (patient == null) {
       throw const UnexpectedFailure('No active patient to save clinical note for.');
     }
@@ -554,12 +588,39 @@ Practice121
       throw const UnexpectedFailure('No clinical note available to save.');
     }
 
+    // Ensure the edited prescription is injected into the note text before saving.
+    if (state.editedPrescription != null) {
+      final markers = [
+        '**Doctor Prescription**',
+        'DOCTOR PRESCRIPTION',
+        'Doctor Prescription:',
+        'Doctor Prescription',
+      ];
+      String? markerFound;
+      int index = -1;
+      for (final marker in markers) {
+        index = noteText!.indexOf(marker);
+        if (index != -1) {
+          markerFound = marker;
+          break;
+        }
+      }
+      
+      if (index != -1 && markerFound != null) {
+        final before = noteText!.substring(0, index + markerFound.length);
+        noteText = '$before\n\n${state.editedPrescription}';
+      }
+    }
+
+    // Strip the JSON block before saving.
+    final cleanNoteText = _stripJsonBlock(noteText!);
+
     await _fhirService.saveClinicalNote(
       url: Uri.parse(_config.fhirNotesUrl),
       patientId: patient.patientId,
       doctorId: doctorId,
       practiceCentreId: practiceCentreId,
-      noteText: noteText,
+      noteText: cleanNoteText,
       ticketId: patient.id,
       visitDate: visitDate,
       clinicName: clinicName,

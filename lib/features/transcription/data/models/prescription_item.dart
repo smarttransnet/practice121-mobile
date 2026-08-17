@@ -130,17 +130,30 @@ class PrescriptionItem {
     if (raw is String) {
       var str = raw.trim();
       if (str.isEmpty) return [];
-      str = str.replaceAll(RegExp(r'^```(?:json)?\s*', multiLine: true, caseSensitive: false), '')
-               .replaceAll(RegExp(r'\s*```$', multiLine: true), '')
-               .trim();
-      try {
-        final decoded = jsonDecode(str);
-        if (decoded is List) {
-          return decoded.map((e) => PrescriptionItem.fromJson(e as Map<String, dynamic>)).toList();
-        } else if (decoded is Map<String, dynamic>) {
-          return [PrescriptionItem.fromJson(decoded)];
+
+      String? jsonStr;
+      final jsonBlockMatch = RegExp(r'```(?:json)?\s*(\[[\s\S]*?\]|\{[\s\S]*?\})\s*```', caseSensitive: false).firstMatch(str);
+      if (jsonBlockMatch != null) {
+        jsonStr = jsonBlockMatch.group(1);
+      } else {
+        final rawJsonMatch = RegExp(r'(\[[\s\S]*?\]|\{[\s\S]*?\})').firstMatch(str);
+        if (rawJsonMatch != null) {
+          jsonStr = rawJsonMatch.group(1);
         }
-      } catch (_) {
+      }
+
+      if (jsonStr != null) {
+        try {
+          final decoded = jsonDecode(jsonStr);
+          if (decoded is List) {
+            return decoded.map((e) => PrescriptionItem.fromJson(e as Map<String, dynamic>)).toList();
+          } else if (decoded is Map<String, dynamic>) {
+            return [PrescriptionItem.fromJson(decoded)];
+          }
+        } catch (_) {
+          // Fall through to plain text parsing
+        }
+      }
         // Fallback: parse plain text lines into separate structured fields
         final lines = str.split('\n');
         final items = <PrescriptionItem>[];
@@ -154,7 +167,6 @@ class PrescriptionItem {
           }
         }
         return items;
-      }
     }
     return [];
   }

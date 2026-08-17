@@ -589,8 +589,8 @@ class _InlineComboBoxState extends State<_InlineComboBox> {
               separatorBuilder: (context, index) => const Divider(height: 1),
               itemBuilder: (context, index) {
                 final opt = matchingOptions[index];
-                return InkWell(
-                  onTap: () {
+                return Listener(
+                  onPointerDown: (_) {
                     _controller.text = opt;
                     widget.onSelected(opt);
                     _focusNode.unfocus();

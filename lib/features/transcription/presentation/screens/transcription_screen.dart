@@ -7,6 +7,7 @@ import '../../../../core/errors/failures.dart';
 import '../../../../core/permissions/permission_service.dart';
 import '../../../auth/presentation/controllers/auth_controller.dart';
 import '../../data/services/queue_service.dart';
+import '../../data/services/clinical_note_fhir_service.dart';
 import '../controllers/transcription_controller.dart';
 import '../controllers/transcription_state.dart';
 import '../widgets/add_patient_sheet.dart';
@@ -89,6 +90,7 @@ class _TranscriptionScreenState extends ConsumerState<TranscriptionScreen> {
       final alreadyGranted =
           await ref.read(permissionServiceProvider).isMicrophoneGranted();
       if (!alreadyGranted) {
+        if (!mounted) return;
         final accepted =
             await PermissionService.confirmMicrophoneDisclosure(context);
         if (!accepted || !mounted) return;
@@ -512,13 +514,13 @@ class _Header extends StatelessWidget {
   }
 }
 
-class _ActivePatientBanner extends StatelessWidget {
+class _ActivePatientBanner extends ConsumerWidget {
   const _ActivePatientBanner({required this.patient});
 
   final QueuePatient patient;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
     return Card(
       color: theme.colorScheme.primaryContainer.withValues(alpha: 0.25),
@@ -528,10 +530,19 @@ class _ActivePatientBanner extends StatelessWidget {
           color: theme.colorScheme.primary.withValues(alpha: 0.35),
         ),
       ),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-        child: Row(
-          children: [
+      child: InkWell(
+        onTap: () {
+          showModalBottomSheet(
+            context: context,
+            isScrollControlled: true,
+            builder: (ctx) => _PatientHistorySheet(patient: patient, ref: ref),
+          );
+        },
+        borderRadius: BorderRadius.circular(16),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+          child: Row(
+            children: [
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
               decoration: BoxDecoration(
@@ -592,6 +603,7 @@ class _ActivePatientBanner extends StatelessWidget {
           ],
         ),
       ),
+      ),
     );
   }
 }
@@ -643,6 +655,113 @@ class _NoteReadyCard extends StatelessWidget {
             ],
           ),
         ),
+      ),
+    );
+  }
+}
+
+class _PatientHistorySheet extends StatefulWidget {
+  const _PatientHistorySheet({required this.patient, required this.ref});
+  final QueuePatient patient;
+  final WidgetRef ref;
+
+  @override
+  State<_PatientHistorySheet> createState() => _PatientHistorySheetState();
+}
+
+class _PatientHistorySheetState extends State<_PatientHistorySheet> {
+  bool _isLoading = true;
+  List<ClinicalNoteSummary>? _notes;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadNotes();
+  }
+
+  Future<void> _loadNotes() async {
+    try {
+      final notes = await widget.ref.read(transcriptionControllerProvider.notifier).loadPriorClinicalNotes();
+      if (mounted) {
+        setState(() {
+          _notes = notes;
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      height: MediaQuery.of(context).size.height * 0.7,
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text('Previous Sessions', style: Theme.of(context).textTheme.titleLarge),
+              IconButton(
+                icon: const Icon(Icons.close),
+                onPressed: () => Navigator.pop(context),
+              ),
+            ],
+          ),
+          Text(
+            widget.patient.patientName,
+            style: Theme.of(context).textTheme.titleSmall?.copyWith(color: Colors.grey),
+          ),
+          const SizedBox(height: 16),
+          Expanded(
+            child: _isLoading 
+              ? const Center(child: CircularProgressIndicator()) 
+              : (_notes == null || _notes!.isEmpty)
+                  ? const Center(child: Text('No previous session history found.'))
+                  : ListView.builder(
+                      itemCount: _notes!.length,
+                      itemBuilder: (ctx, i) {
+                        final note = _notes![i];
+                        return Card(
+                          margin: const EdgeInsets.only(bottom: 12),
+                          child: Padding(
+                            padding: const EdgeInsets.all(12),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Row(
+                                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                  children: [
+                                    Text(
+                                      note.visitDate ?? 'Unknown Date',
+                                      style: const TextStyle(fontWeight: FontWeight.bold),
+                                    ),
+                                    Text(
+                                      note.clinicName ?? '',
+                                      style: const TextStyle(fontSize: 12, color: Colors.grey),
+                                    ),
+                                  ],
+                                ),
+                                const SizedBox(height: 8),
+                                Text(
+                                  note.preview ?? 'No content preview available.',
+                                  style: Theme.of(context).textTheme.bodyMedium,
+                                ),
+                              ],
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+          ),
+        ],
       ),
     );
   }

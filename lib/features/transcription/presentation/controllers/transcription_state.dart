@@ -43,6 +43,7 @@ class TranscriptionState {
     this.isSendingSms = false,
     this.isAdvancingQueue = false,
     this.activePatient,
+    this.editedPrescription,
   });
 
   final SessionStatus status;
@@ -61,6 +62,9 @@ class TranscriptionState {
 
   /// List of all amendment commands applied in this session.
   final List<String> amendmentHistory;
+
+  /// The manually edited prescription from the user.
+  final String? editedPrescription;
 
   /// Verbatim concatenated transcript (only set after Stop).
   final String? fullTranscript;
@@ -158,6 +162,8 @@ class TranscriptionState {
     bool? isAdvancingQueue,
     QueuePatient? activePatient,
     bool clearActivePatient = false,
+    String? editedPrescription,
+    bool clearEditedPrescription = false,
   }) {
     return TranscriptionState(
       status: status ?? this.status,
@@ -189,6 +195,9 @@ class TranscriptionState {
       activePatient: clearActivePatient
           ? null
           : (activePatient ?? this.activePatient),
+      editedPrescription: clearEditedPrescription
+          ? null
+          : (editedPrescription ?? this.editedPrescription),
     );
   }
 }

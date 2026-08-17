@@ -415,63 +415,87 @@ class _PatientQueueScreenState extends ConsumerState<PatientQueueScreen> {
                                           ? const BorderSide(color: AppColors.accent, width: 2)
                                           : BorderSide.none,
                                     ),
-                                    child: ListTile(
-                                      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                                      leading: CircleAvatar(
-                                        backgroundColor: isInConsultation
-                                            ? AppColors.accent
-                                            : (isCompleted ? Colors.grey : theme.colorScheme.primary),
-                                        radius: 22,
-                                        child: Text(
-                                          '#${ticket.queueNumber}',
-                                          style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
-                                        ),
-                                      ),
-                                      title: Text(
-                                        ticket.patientName,
-                                        style: TextStyle(
-                                          fontWeight: FontWeight.bold,
-                                          fontSize: 16,
-                                          color: isCompleted ? Colors.grey : null,
-                                        ),
-                                      ),
-                                      subtitle: Column(
+                                    child: Padding(
+                                      padding: const EdgeInsets.all(16),
+                                      child: Column(
                                         crossAxisAlignment: CrossAxisAlignment.start,
                                         children: [
-                                          const SizedBox(height: 4),
-                                          Text(ticket.patientMobile.isNotEmpty ? ticket.patientMobile : 'No contact'),
-                                          const SizedBox(height: 6),
                                           Row(
+                                            crossAxisAlignment: CrossAxisAlignment.start,
                                             children: [
-                                              _buildPriorityChip(ticket.priority),
+                                              CircleAvatar(
+                                                backgroundColor: isInConsultation
+                                                    ? AppColors.accent
+                                                    : (isCompleted ? Colors.grey : theme.colorScheme.primary),
+                                                radius: 22,
+                                                child: Text(
+                                                  '#${ticket.queueNumber}',
+                                                  style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                                                ),
+                                              ),
+                                              const SizedBox(width: 16),
+                                              Expanded(
+                                                child: Column(
+                                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                                  children: [
+                                                    Text(
+                                                      ticket.patientName,
+                                                      style: TextStyle(
+                                                        fontWeight: FontWeight.bold,
+                                                        fontSize: 16,
+                                                        color: isCompleted ? Colors.grey : null,
+                                                      ),
+                                                    ),
+                                                    const SizedBox(height: 4),
+                                                    Text(
+                                                      ticket.patientMobile.isNotEmpty ? ticket.patientMobile : 'No contact',
+                                                      style: TextStyle(
+                                                        color: theme.colorScheme.onSurfaceVariant,
+                                                        fontSize: 14,
+                                                      ),
+                                                    ),
+                                                  ],
+                                                ),
+                                              ),
+                                              if (isCompleted)
+                                                const Icon(Icons.check_circle_rounded, color: Colors.grey, size: 28),
+                                            ],
+                                          ),
+                                          const SizedBox(height: 16),
+                                          Row(
+                                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                            children: [
+                                              Expanded(
+                                                child: Wrap(
+                                                  spacing: 8,
+                                                  runSpacing: 8,
+                                                  children: [
+                                                    _buildPriorityChip(ticket.priority),
+                                                    _buildStatusChip(ticket.status),
+                                                  ],
+                                                ),
+                                              ),
                                               const SizedBox(width: 8),
-                                              _buildStatusChip(ticket.status),
+                                              isCompleted
+                                                  ? TextButton.icon(
+                                                      onPressed: ticket.patientId != null
+                                                          ? () => _viewSavedNote(ticket.patientId!)
+                                                          : null,
+                                                      icon: const Icon(Icons.description, size: 20),
+                                                      label: const Text('View Note'),
+                                                    )
+                                                  : FilledButton(
+                                                      onPressed: () => _selectPatient(ticket),
+                                                      style: FilledButton.styleFrom(
+                                                        backgroundColor: isInConsultation ? Colors.orange : theme.colorScheme.primary,
+                                                        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                                                      ),
+                                                      child: Text(isInConsultation ? 'Resume' : 'Start'),
+                                                    ),
                                             ],
                                           ),
                                         ],
                                       ),
-                                      trailing: isCompleted
-                                          ? Row(
-                                              mainAxisSize: MainAxisSize.min,
-                                              children: [
-                                                TextButton.icon(
-                                                  onPressed: ticket.patientId != null
-                                                      ? () => _viewSavedNote(ticket.patientId!)
-                                                      : null,
-                                                  icon: const Icon(Icons.description, size: 20),
-                                                  label: const Text('View Note'),
-                                                ),
-                                                const SizedBox(width: 8),
-                                                const Icon(Icons.check_circle_rounded, color: Colors.grey, size: 28),
-                                              ],
-                                            )
-                                          : FilledButton(
-                                              onPressed: () => _selectPatient(ticket),
-                                              style: FilledButton.styleFrom(
-                                                backgroundColor: isInConsultation ? Colors.orange : theme.colorScheme.primary,
-                                              ),
-                                              child: Text(isInConsultation ? 'Resume' : 'Start'),
-                                            ),
                                     ),
                                   );
                                 },
