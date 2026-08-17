@@ -62,54 +62,50 @@ class AppConfig {
   /// the production Cloud Run URL used by the React frontend if in release mode,
   /// or localhost if in debug mode.
   factory AppConfig.fromEnvironment() {
-    const wsUrl = String.fromEnvironment(
-      'TRANSCRIPTION_WS_URL',
-      defaultValue: kDebugMode
-          ? 'ws://localhost:5005/ws/transcribe'
-          : 'wss://note365-stt-api-687271578749.asia-southeast1.run.app/ws/transcribe',
-    );
+    final isLocalWeb = kIsWeb && (Uri.base.host == 'localhost' || Uri.base.host == '127.0.0.1');
+    final useLocal = kDebugMode || isLocalWeb;
 
-    const voiceCommandWsUrl = String.fromEnvironment(
-      'VOICE_COMMAND_WS_URL',
-      defaultValue: kDebugMode
-          ? 'ws://localhost:5005/ws/transcribe-command'
-          : 'wss://note365-stt-api-687271578749.asia-southeast1.run.app/ws/transcribe-command',
-    );
+    final wsUrl = const String.fromEnvironment('TRANSCRIPTION_WS_URL', defaultValue: '') != ''
+        ? const String.fromEnvironment('TRANSCRIPTION_WS_URL')
+        : (useLocal
+            ? 'ws://localhost:5005/ws/transcribe'
+            : 'wss://note365-stt-api-687271578749.asia-southeast1.run.app/ws/transcribe');
 
-    const amendUrl = String.fromEnvironment(
-      'AMEND_URL',
-      defaultValue: kDebugMode
-          ? 'http://localhost:5005/notes/amend'
-          : 'https://note365-stt-api-687271578749.asia-southeast1.run.app/notes/amend',
-    );
+    final voiceCommandWsUrl = const String.fromEnvironment('VOICE_COMMAND_WS_URL', defaultValue: '') != ''
+        ? const String.fromEnvironment('VOICE_COMMAND_WS_URL')
+        : (useLocal
+            ? 'ws://localhost:5005/ws/transcribe-command'
+            : 'wss://note365-stt-api-687271578749.asia-southeast1.run.app/ws/transcribe-command');
 
-    const emailUrl = String.fromEnvironment(
-      'EMAIL_URL',
-      defaultValue: kDebugMode
-          ? 'http://localhost:5005/notes/email'
-          : 'https://note365-stt-api-687271578749.asia-southeast1.run.app/notes/email',
-    );
+    final amendUrl = const String.fromEnvironment('AMEND_URL', defaultValue: '') != ''
+        ? const String.fromEnvironment('AMEND_URL')
+        : (useLocal
+            ? 'http://localhost:5005/notes/amend'
+            : 'https://note365-stt-api-687271578749.asia-southeast1.run.app/notes/amend');
 
-    const smsUrl = String.fromEnvironment(
-      'SMS_URL',
-      defaultValue: kDebugMode
-          ? 'http://localhost:5005/notes/sms'
-          : 'https://note365-stt-api-687271578749.asia-southeast1.run.app/notes/sms',
-    );
+    final emailUrl = const String.fromEnvironment('EMAIL_URL', defaultValue: '') != ''
+        ? const String.fromEnvironment('EMAIL_URL')
+        : (useLocal
+            ? 'http://localhost:5005/notes/email'
+            : 'https://note365-stt-api-687271578749.asia-southeast1.run.app/notes/email');
 
-    const fhirNotesUrl = String.fromEnvironment(
-      'FHIR_NOTES_URL',
-      defaultValue: kDebugMode
-          ? 'http://localhost:5005/notes/fhir'
-          : 'https://note365-stt-api-687271578749.asia-southeast1.run.app/notes/fhir',
-    );
+    final smsUrl = const String.fromEnvironment('SMS_URL', defaultValue: '') != ''
+        ? const String.fromEnvironment('SMS_URL')
+        : (useLocal
+            ? 'http://localhost:5005/notes/sms'
+            : 'https://note365-stt-api-687271578749.asia-southeast1.run.app/notes/sms');
 
-    const clientApiBaseUrl = String.fromEnvironment(
-      'CLIENT_API_BASE_URL',
-      defaultValue: kDebugMode
-          ? 'http://localhost:5000'
-          : 'https://practice121-api-687271578749.asia-southeast1.run.app',
-    );
+    final fhirNotesUrl = const String.fromEnvironment('FHIR_NOTES_URL', defaultValue: '') != ''
+        ? const String.fromEnvironment('FHIR_NOTES_URL')
+        : (useLocal
+            ? 'http://localhost:5005/notes/fhir'
+            : 'https://note365-stt-api-687271578749.asia-southeast1.run.app/notes/fhir');
+
+    final clientApiBaseUrl = const String.fromEnvironment('CLIENT_API_BASE_URL', defaultValue: '') != ''
+        ? const String.fromEnvironment('CLIENT_API_BASE_URL')
+        : (useLocal
+            ? 'http://localhost:5000'
+            : 'https://practice121-api-687271578749.asia-southeast1.run.app');
 
     const googleServerClientId = String.fromEnvironment(
       'GOOGLE_SERVER_CLIENT_ID',

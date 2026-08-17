@@ -43,7 +43,8 @@ final clinicalNoteFhirServiceProvider = Provider<ClinicalNoteFhirService>((ref) 
 
 final queueServiceProvider = Provider<QueueService>((ref) {
   final apiClient = ref.watch(apiClientProvider);
-  return QueueService(apiClient: apiClient);
+  final config = ref.watch(appConfigProvider);
+  return QueueService(apiClient: apiClient, baseUrl: config.clientApiBaseUrl);
 });
 
 /// Repository factory — fresh instance per session so old subscriptions can't

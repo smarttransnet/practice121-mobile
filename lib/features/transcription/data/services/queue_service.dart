@@ -128,12 +128,12 @@ class QueueTicket {
 
 /// Calls the Client-API to advance the queue to the next patient.
 class QueueService {
-  QueueService({ApiClient? apiClient}) : _apiClient = apiClient;
+  QueueService({ApiClient? apiClient, required String baseUrl}) 
+      : _apiClient = apiClient,
+        _baseUrl = baseUrl;
 
   final ApiClient? _apiClient;
-
-  static const String _baseUrl =
-      'http://localhost:5000';
+  final String _baseUrl;
 
   /// Fetches active queue tickets for the selected practice centre.
   Future<List<QueueTicket>> fetchQueueTickets({
@@ -155,8 +155,18 @@ class QueueService {
           : await http.get(uri);
 
       if (response.statusCode == 200) {
-        final List list = jsonDecode(response.body);
-        return list.map((item) => QueueTicket.fromJson(item)).toList();
+        final rawData = jsonDecode(response.body);
+        List<dynamic> list = [];
+        if (rawData is List) {
+          list = rawData;
+        } else if (rawData is Map<String, dynamic>) {
+          if (rawData['data'] is List) {
+            list = rawData['data'] as List;
+          } else if (rawData['\$values'] is List) {
+            list = rawData['\$values'] as List;
+          }
+        }
+        return list.map((item) => QueueTicket.fromJson(item as Map<String, dynamic>)).toList();
       }
       AppLogger.w('QueueService: fetch queue status code ${response.statusCode}');
       return [];

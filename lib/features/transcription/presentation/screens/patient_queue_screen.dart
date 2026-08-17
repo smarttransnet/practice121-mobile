@@ -393,32 +393,6 @@ class _PatientQueueScreenState extends ConsumerState<PatientQueueScreen> {
                                         ),
                                         textAlign: TextAlign.center,
                                       ),
-                                      const SizedBox(height: 24),
-                                      FilledButton.icon(
-                                        onPressed: () async {
-                                          final added = await AddPatientSheet.show(
-                                            context,
-                                            doctorId: widget.doctorId,
-                                            practiceCentreId: widget.practiceCentreId,
-                                            existingTickets: _tickets,
-                                          );
-                                          if (added == true) {
-                                            _loadQueue();
-                                          }
-                                        },
-                                        icon: const Icon(Icons.person_add_rounded),
-                                        label: const Text('Add Patient'),
-                                        style: FilledButton.styleFrom(
-                                          backgroundColor: AppColors.accent,
-                                          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
-                                        ),
-                                      ),
-                                      const SizedBox(height: 12),
-                                      OutlinedButton.icon(
-                                        onPressed: _loadQueue,
-                                        icon: const Icon(Icons.refresh_rounded),
-                                        label: const Text('Refresh Queue'),
-                                      ),
                                     ],
                                   ),
                                 ),
