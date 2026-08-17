@@ -31,7 +31,7 @@ final authControllerProvider =
 
   // Hook ApiClient 401 callback to auto-logout
   ref.watch(apiClientProvider).setOnUnauthorized(() {
-    controller.logout();
+    controller.forceLogoutDueToExpiration();
   });
 
   return controller;
@@ -234,6 +234,18 @@ class AuthController extends StateNotifier<AuthState> {
 
     state = state.copyWith(
       status: AuthStatus.unauthenticated,
+      clearToken: true,
+    );
+  }
+
+  /// Forcefully logs out user due to session expiration and shows a message.
+  Future<void> forceLogoutDueToExpiration() async {
+    AppLogger.i('AuthController: force logout due to expiration initiated');
+    await _storageService.clearTokens();
+
+    state = state.copyWith(
+      status: AuthStatus.error,
+      errorMessage: 'Your session has expired. Please log in again.',
       clearToken: true,
     );
   }
