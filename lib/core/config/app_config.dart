@@ -95,11 +95,12 @@ class AppConfig {
             ? 'http://localhost:5005/notes/sms'
             : 'https://note365-stt-api-687271578749.asia-southeast1.run.app/notes/sms');
 
-    final fhirNotesUrl = const String.fromEnvironment('FHIR_NOTES_URL', defaultValue: '') != ''
+    String fhirNotesUrl = const String.fromEnvironment('FHIR_NOTES_URL', defaultValue: '') != ''
         ? const String.fromEnvironment('FHIR_NOTES_URL')
         : (useLocal
             ? 'http://localhost:5005/notes/fhir'
             : 'https://note365-stt-api-687271578749.asia-southeast1.run.app/notes/fhir');
+    fhirNotesUrl = fhirNotesUrl.replaceAll(RegExp(r'/+$'), '');
 
     final clientApiBaseUrl = const String.fromEnvironment('CLIENT_API_BASE_URL', defaultValue: '') != ''
         ? const String.fromEnvironment('CLIENT_API_BASE_URL')

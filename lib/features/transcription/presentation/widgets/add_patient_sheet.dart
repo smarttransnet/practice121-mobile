@@ -687,46 +687,15 @@ class _AddPatientSheetState extends ConsumerState<AddPatientSheet> {
         ),
         const SizedBox(height: 6),
         Text(
-          'No patient record was found for ${_mobileController.text.trim()}. You can proceed to add this ticket directly to the queue.',
+          'No patient record was found for ${_mobileController.text.trim()}.',
           textAlign: TextAlign.center,
           style: theme.textTheme.bodyMedium?.copyWith(color: theme.colorScheme.onSurfaceVariant),
         ),
         const SizedBox(height: 20),
 
-        Text(
-          'Queue Priority',
-          style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w600),
-        ),
-        const SizedBox(height: 8),
-        SegmentedButton<int>(
-          segments: const [
-            ButtonSegment<int>(value: 0, label: Text('Normal')),
-            ButtonSegment<int>(value: 1, label: Text('High')),
-            ButtonSegment<int>(value: 2, label: Text('Emergency')),
-          ],
-          selected: {_priority},
-          onSelectionChanged: (set) => setState(() => _priority = set.first),
-        ),
-        const SizedBox(height: 20),
-
-        Row(
-          children: [
-            Expanded(
-              child: OutlinedButton(
-                onPressed: () => setState(() => _mode = AddPatientMode.input),
-                child: const Text('Back'),
-              ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: FilledButton.icon(
-                onPressed: _isSubmitting ? null : _handleFinalConfirm,
-                icon: const Icon(Icons.add_rounded),
-                label: const Text('Add to Queue'),
-                style: FilledButton.styleFrom(backgroundColor: AppColors.accent),
-              ),
-            ),
-          ],
+        OutlinedButton(
+          onPressed: () => setState(() => _mode = AddPatientMode.input),
+          child: const Text('Back'),
         ),
       ],
     );
