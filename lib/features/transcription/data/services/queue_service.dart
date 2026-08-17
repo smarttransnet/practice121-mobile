@@ -650,13 +650,34 @@ class PatientLookupResult {
   final List<PatientRecord> children;
 
   factory PatientLookupResult.fromJson(Map<String, dynamic> json) {
+    PatientRecord? primary;
+    if (json['primaryPatient'] != null) {
+      primary = PatientRecord.fromJson(json['primaryPatient'] as Map<String, dynamic>);
+    } else {
+      // Fallback in case there's no primary patient, though API should return it.
+      primary = const PatientRecord(id: '', firstName: 'Unknown', mobileNumber: '');
+    }
+
+    List<PatientRecord> parsedChildren = [];
+    final familyData = json['familyMembers'] ?? json['children'];
+    
+    if (familyData != null) {
+      List<dynamic> list = [];
+      if (familyData is List) {
+        list = familyData;
+      } else if (familyData is Map<String, dynamic>) {
+        if (familyData['data'] is List) {
+          list = familyData['data'] as List;
+        } else if (familyData['\$values'] is List) {
+          list = familyData['\$values'] as List;
+        }
+      }
+      parsedChildren = list.map((item) => PatientRecord.fromJson(item as Map<String, dynamic>)).toList();
+    }
+
     return PatientLookupResult(
-      primaryPatient: PatientRecord.fromJson(json['primaryPatient'] as Map<String, dynamic>),
-      children: json['children'] != null
-          ? (json['children'] as List)
-              .map((item) => PatientRecord.fromJson(item as Map<String, dynamic>))
-              .toList()
-          : [],
+      primaryPatient: primary,
+      children: parsedChildren,
     );
   }
 }
