@@ -7,6 +7,10 @@ import '../features/auth/presentation/screens/login_screen.dart';
 import '../features/dashboard/presentation/screens/dashboard_screen.dart';
 import '../features/transcription/presentation/screens/patient_queue_screen.dart';
 import '../features/transcription/presentation/screens/transcription_screen.dart';
+import '../features/patients/presentation/screens/patients_screen.dart';
+import '../features/forms/presentation/screens/forms_screen.dart';
+import '../features/profile/presentation/screens/profile_screen.dart';
+import '../design_system/widgets/app_shell.dart';
 
 /// Listenable bridge to trigger GoRouter redirects when AuthState updates.
 class RouterRefreshNotifier extends ChangeNotifier {
@@ -23,6 +27,7 @@ final routerProvider = Provider<GoRouter>((ref) {
 
   return GoRouter(
     refreshListenable: refreshNotifier,
+    // Start at login, it redirects to the shell if authenticated.
     initialLocation: AppRoutes.login,
     redirect: (context, state) {
       final authState = ref.read(authControllerProvider);
@@ -37,7 +42,8 @@ final routerProvider = Provider<GoRouter>((ref) {
         return AppRoutes.login;
       }
       if (isAuth && isLoggingIn) {
-        return AppRoutes.dashboard;
+        // Redirect to the new shell's Queue tab instead of the old dashboard.
+        return AppRoutes.shellQueue;
       }
       return null;
     },
@@ -61,6 +67,8 @@ final routerProvider = Provider<GoRouter>((ref) {
           );
         },
       ),
+      
+      // OLD ROUTES - Kept intact for backwards compatibility and deep links
       GoRoute(
         path: AppRoutes.dashboard,
         name: AppRoutes.dashboardName,
@@ -90,6 +98,59 @@ final routerProvider = Provider<GoRouter>((ref) {
           );
         },
       ),
+
+      // NEW SHELL ROUTE
+      StatefulShellRoute.indexedStack(
+        builder: (context, state, navigationShell) {
+          return AppShell(navigationShell: navigationShell);
+        },
+        branches: [
+          StatefulShellBranch(
+            routes: [
+              GoRoute(
+                path: AppRoutes.shellQueue,
+                builder: (context, state) => const PatientQueueScreen(
+                  doctorId: '',
+                  practiceCentreId: '',
+                  clinicName: 'Practice Centre',
+                ),
+              ),
+            ],
+          ),
+          StatefulShellBranch(
+            routes: [
+              GoRoute(
+                path: AppRoutes.shellSchedule,
+                builder: (context, state) => const DashboardScreen(),
+              ),
+            ],
+          ),
+          StatefulShellBranch(
+            routes: [
+              GoRoute(
+                path: AppRoutes.shellPatients,
+                builder: (context, state) => const PatientsScreen(),
+              ),
+            ],
+          ),
+          StatefulShellBranch(
+            routes: [
+              GoRoute(
+                path: AppRoutes.shellForms,
+                builder: (context, state) => const FormsScreen(),
+              ),
+            ],
+          ),
+          StatefulShellBranch(
+            routes: [
+              GoRoute(
+                path: AppRoutes.shellProfile,
+                builder: (context, state) => const ProfileScreen(),
+              ),
+            ],
+          ),
+        ],
+      ),
     ],
   );
 });
@@ -98,10 +159,19 @@ class AppRoutes {
   AppRoutes._();
   static const login = '/login';
   static const loginName = 'login';
+  
+  // Old routes
   static const dashboard = '/dashboard';
   static const dashboardName = 'dashboard';
   static const patientQueue = '/patient-queue';
   static const patientQueueName = 'patientQueue';
   static const transcription = '/transcription';
   static const transcriptionName = 'transcription';
+  
+  // New shell routes
+  static const shellQueue = '/shell/queue';
+  static const shellSchedule = '/shell/schedule';
+  static const shellPatients = '/shell/patients';
+  static const shellForms = '/shell/forms';
+  static const shellProfile = '/shell/profile';
 }

@@ -1,6 +1,10 @@
 import 'package:flutter/material.dart';
 
 import '../../../../app/theme/app_colors.dart';
+import '../../../../design_system/app_spacing.dart';
+import '../../../../design_system/widgets/app_buttons.dart';
+import '../../../../design_system/widgets/app_card.dart';
+import '../../../../design_system/widgets/status_badge.dart';
 import '../../data/models/practice_centre.dart';
 
 /// Card widget presenting a concise session summary for a practice centre,
@@ -22,45 +26,33 @@ class PracticeCentreCard extends StatelessWidget {
     final theme = Theme.of(context);
     final centre = summary.centre;
 
-    final (badgeText, badgeColor, badgeBg) = switch (summary.status) {
+    final (badgeText, badgeType) = switch (summary.status) {
       SessionScheduleStatus.active => (
           'ACTIVE SESSION',
-          AppColors.success,
-          AppColors.success.withValues(alpha: 0.15),
+          StatusBadgeType.success,
         ),
       SessionScheduleStatus.upcoming => (
           'UPCOMING',
-          theme.colorScheme.primary,
-          theme.colorScheme.primary.withValues(alpha: 0.15),
+          StatusBadgeType.info,
         ),
       SessionScheduleStatus.completed => (
           'COMPLETED TODAY',
-          theme.colorScheme.onSurfaceVariant,
-          theme.colorScheme.surfaceContainerHighest,
+          StatusBadgeType.neutral,
         ),
       SessionScheduleStatus.notScheduledToday => (
           'NOT SCHEDULED TODAY',
-          theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.7),
-          theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.5),
+          StatusBadgeType.warning,
         ),
     };
 
-    return Card(
-      elevation: isFeatured ? 4 : 1,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(20),
-        side: BorderSide(
-          color: isFeatured
-              ? theme.colorScheme.primary
-              : theme.colorScheme.outlineVariant.withValues(alpha: 0.5),
-          width: isFeatured ? 2 : 1,
-        ),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.all(18),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
+    return AppCard(
+      border: isFeatured
+          ? Border.all(color: theme.colorScheme.primary, width: 2)
+          : null,
+      padding: const EdgeInsets.all(AppSpacing.lg),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
             // Header Row: Featured Indicator + Status Badge
             Row(
               children: [
@@ -93,25 +85,9 @@ class PracticeCentreCard extends StatelessWidget {
                 ] else ...[
                   const Spacer(),
                 ],
-                Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: badgeBg,
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(
-                      color: badgeColor.withValues(alpha: 0.4),
-                    ),
-                  ),
-                  child: Text(
-                    badgeText,
-                    style: TextStyle(
-                      color: badgeColor,
-                      fontSize: 11,
-                      fontWeight: FontWeight.bold,
-                      letterSpacing: 0.5,
-                    ),
-                  ),
+                StatusBadge(
+                  label: badgeText,
+                  type: badgeType,
                 ),
               ],
             ),
@@ -204,31 +180,15 @@ class PracticeCentreCard extends StatelessWidget {
             // Start Session Button
             SizedBox(
               width: double.infinity,
-              height: 46,
-              child: FilledButton.icon(
+              child: AppPrimaryButton(
                 onPressed: () => onStartSession(summary),
-                style: FilledButton.styleFrom(
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(14),
-                  ),
-                  backgroundColor: summary.status == SessionScheduleStatus.active
-                      ? AppColors.success
-                      : theme.colorScheme.primary,
-                ),
-                icon: const Icon(Icons.play_circle_outline_rounded, size: 20),
-                label: const Text(
-                  'Start Session',
-                  style: TextStyle(
-                    fontWeight: FontWeight.bold,
-                    fontSize: 15,
-                  ),
-                ),
+                icon: Icons.play_circle_outline_rounded,
+                label: 'Start Session',
               ),
             ),
           ],
         ),
-      ),
-    );
+      );
   }
 }
 

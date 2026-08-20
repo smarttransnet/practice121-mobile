@@ -4,9 +4,16 @@ import 'package:go_router/go_router.dart';
 
 import '../../../../app/router.dart';
 import '../../../../app/theme/app_colors.dart';
+import '../../../../design_system/app_spacing.dart';
+import '../../../../design_system/widgets/app_buttons.dart';
+import '../../../../design_system/widgets/app_card.dart';
+import '../../../../design_system/widgets/empty_state.dart';
+import '../../../../design_system/widgets/status_badge.dart';
 import '../../../../core/config/app_config.dart';
 import '../../data/services/queue_service.dart';
+import '../../data/services/clinical_note_fhir_service.dart';
 import '../controllers/transcription_controller.dart';
+import '../controllers/transcription_state.dart';
 import '../widgets/add_patient_sheet.dart';
 
 /// Screen displaying the active patient queue for a selected practice centre.
@@ -223,50 +230,22 @@ class _PatientQueueScreenState extends ConsumerState<PatientQueueScreen> {
   Widget _buildPriorityChip(int priority) {
     switch (priority) {
       case 2:
-        return const Chip(
-          label: Text('Emergency', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 11)),
-          backgroundColor: Colors.red,
-          padding: EdgeInsets.zero,
-          visualDensity: VisualDensity.compact,
-        );
+        return const StatusBadge(label: 'Emergency', type: StatusBadgeType.critical);
       case 1:
-        return const Chip(
-          label: Text('High', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 11)),
-          backgroundColor: Colors.orange,
-          padding: EdgeInsets.zero,
-          visualDensity: VisualDensity.compact,
-        );
+        return const StatusBadge(label: 'High', type: StatusBadgeType.warning);
       default:
-        return const Chip(
-          label: Text('Normal', style: TextStyle(fontSize: 11)),
-          padding: EdgeInsets.zero,
-          visualDensity: VisualDensity.compact,
-        );
+        return const StatusBadge(label: 'Normal', type: StatusBadgeType.neutral);
     }
   }
 
   Widget _buildStatusChip(int status) {
     switch (status) {
       case 3:
-        return const Chip(
-          label: Text('In Consultation', style: TextStyle(color: Colors.white, fontSize: 11)),
-          backgroundColor: AppColors.accent,
-          padding: EdgeInsets.zero,
-          visualDensity: VisualDensity.compact,
-        );
+        return const StatusBadge(label: 'In Consultation', type: StatusBadgeType.info);
       case 4:
-        return const Chip(
-          label: Text('Completed', style: TextStyle(color: Colors.white, fontSize: 11)),
-          backgroundColor: Colors.grey,
-          padding: EdgeInsets.zero,
-          visualDensity: VisualDensity.compact,
-        );
+        return const StatusBadge(label: 'Completed', type: StatusBadgeType.neutral);
       default:
-        return const Chip(
-          label: Text('Waiting', style: TextStyle(fontSize: 11)),
-          padding: EdgeInsets.zero,
-          visualDensity: VisualDensity.compact,
-        );
+        return const StatusBadge(label: 'Waiting', type: StatusBadgeType.neutral);
     }
   }
 
@@ -325,13 +304,10 @@ class _PatientQueueScreenState extends ConsumerState<PatientQueueScreen> {
                     Row(
                       children: [
                         Expanded(
-                          child: OutlinedButton.icon(
+                          child: AppSecondaryButton(
                             onPressed: _startNextPatient,
-                            icon: const Icon(Icons.play_arrow_rounded, size: 18),
-                            label: const Text('Start Next'),
-                            style: OutlinedButton.styleFrom(
-                              padding: const EdgeInsets.symmetric(vertical: 10),
-                            ),
+                            icon: Icons.play_arrow_rounded,
+                            label: 'Start Next',
                           ),
                         ),
                       ],
@@ -358,49 +334,16 @@ class _PatientQueueScreenState extends ConsumerState<PatientQueueScreen> {
                                   const SizedBox(height: 12),
                                   Text(_error!, textAlign: TextAlign.center),
                                   const SizedBox(height: 16),
-                                  ElevatedButton(onPressed: _loadQueue, child: const Text('Retry')),
+                                  AppPrimaryButton(onPressed: _loadQueue, label: 'Retry'),
                                 ],
                               ),
                             ),
                           )
                         : waitingTickets.isEmpty
-                            ? Center(
-                                child: SingleChildScrollView(
-                                  padding: const EdgeInsets.all(24),
-                                  child: Column(
-                                    mainAxisAlignment: MainAxisAlignment.center,
-                                    children: [
-                                      Container(
-                                        padding: const EdgeInsets.all(20),
-                                        decoration: BoxDecoration(
-                                          color: AppColors.accent.withValues(alpha: 0.1),
-                                          shape: BoxShape.circle,
-                                        ),
-                                        child: const Icon(
-                                          Icons.people_outline_rounded,
-                                          color: AppColors.accent,
-                                          size: 56,
-                                        ),
-                                      ),
-                                      const SizedBox(height: 20),
-                                      Text(
-                                        'No patients are currently in this session.',
-                                        style: theme.textTheme.titleMedium?.copyWith(
-                                          fontWeight: FontWeight.bold,
-                                        ),
-                                        textAlign: TextAlign.center,
-                                      ),
-                                      const SizedBox(height: 8),
-                                      Text(
-                                        'Add a patient directly to start or conduct this consultation session.',
-                                        style: theme.textTheme.bodyMedium?.copyWith(
-                                          color: theme.colorScheme.onSurfaceVariant,
-                                        ),
-                                        textAlign: TextAlign.center,
-                                      ),
-                                    ],
-                                  ),
-                                ),
+                            ? const EmptyState(
+                                title: 'No patients are currently in this session.',
+                                description: 'Add a patient directly to start or conduct this consultation session.',
+                                icon: Icons.people_outline_rounded,
                               )
                             : ListView.builder(
                                 padding: const EdgeInsets.all(12),
@@ -410,19 +353,13 @@ class _PatientQueueScreenState extends ConsumerState<PatientQueueScreen> {
                                   final isInConsultation = ticket.status == 3;
                                   final isCompleted = ticket.status == 4;
 
-                                  return Card(
-                                    elevation: isInConsultation ? 3 : (isCompleted ? 0 : 1),
-                                    margin: const EdgeInsets.only(bottom: 10),
+                                  return AppCard(
+                                    margin: const EdgeInsets.only(bottom: AppSpacing.md),
                                     color: isCompleted ? theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.5) : null,
-                                    shape: RoundedRectangleBorder(
-                                      borderRadius: BorderRadius.circular(12),
-                                      side: isInConsultation
-                                          ? const BorderSide(color: AppColors.accent, width: 2)
-                                          : BorderSide.none,
-                                    ),
-                                    child: Padding(
-                                      padding: const EdgeInsets.all(16),
-                                      child: Column(
+                                    border: isInConsultation
+                                        ? Border.all(color: theme.colorScheme.primary, width: 2)
+                                        : null,
+                                    child: Column(
                                         crossAxisAlignment: CrossAxisAlignment.start,
                                         children: [
                                           Row(
@@ -482,26 +419,21 @@ class _PatientQueueScreenState extends ConsumerState<PatientQueueScreen> {
                                               ),
                                               const SizedBox(width: 8),
                                               isCompleted
-                                                  ? TextButton.icon(
+                                                  ? AppTextButton(
                                                       onPressed: ticket.patientId != null
                                                           ? () => _viewSavedNote(ticket.patientId!)
                                                           : null,
-                                                      icon: const Icon(Icons.description, size: 20),
-                                                      label: const Text('View Note'),
+                                                      icon: Icons.description,
+                                                      label: 'View Note',
                                                     )
-                                                  : FilledButton(
+                                                  : AppPrimaryButton(
                                                       onPressed: () => _selectPatient(ticket),
-                                                      style: FilledButton.styleFrom(
-                                                        backgroundColor: isInConsultation ? Colors.orange : theme.colorScheme.primary,
-                                                        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-                                                      ),
-                                                      child: Text(isInConsultation ? 'Resume' : 'Start'),
+                                                      label: isInConsultation ? 'Resume' : 'Start',
                                                     ),
                                             ],
                                           ),
                                         ],
                                       ),
-                                    ),
                                   );
                                 },
                               ),

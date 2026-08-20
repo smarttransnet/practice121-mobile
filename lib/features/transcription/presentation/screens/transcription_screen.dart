@@ -5,6 +5,10 @@ import 'package:go_router/go_router.dart';
 import '../../../../app/theme/app_colors.dart';
 import '../../../../core/errors/failures.dart';
 import '../../../../core/permissions/permission_service.dart';
+import '../../../../design_system/app_spacing.dart';
+import '../../../../design_system/widgets/app_buttons.dart';
+import '../../../../design_system/widgets/app_card.dart';
+import '../../../../design_system/widgets/empty_state.dart';
 import '../../../auth/presentation/controllers/auth_controller.dart';
 import '../../data/services/queue_service.dart';
 import '../../data/services/clinical_note_fhir_service.dart';
@@ -251,67 +255,32 @@ class _TranscriptionScreenState extends ConsumerState<TranscriptionScreen> {
                                     Text('Loading patient details...'),
                                   ],
                                 )
-                              : Padding(
-                                  padding: const EdgeInsets.all(24.0),
-                                  child: Column(
-                                    mainAxisSize: MainAxisSize.min,
+                              : EmptyState(
+                                  icon: Icons.people_outline_rounded,
+                                  title: 'No patients are currently in this session.',
+                                  description: 'Add a patient directly to start or conduct this session.',
+                                  action: Row(
+                                    mainAxisAlignment: MainAxisAlignment.center,
                                     children: [
-                                      Container(
-                                        padding: const EdgeInsets.all(16),
-                                        decoration: BoxDecoration(
-                                          color: AppColors.accent.withValues(alpha: 0.1),
-                                          shape: BoxShape.circle,
-                                        ),
-                                        child: const Icon(
-                                          Icons.people_outline_rounded,
-                                          size: 48,
-                                          color: AppColors.accent,
-                                        ),
+                                      AppPrimaryButton(
+                                        onPressed: () async {
+                                          final added = await AddPatientSheet.show(
+                                            context,
+                                            doctorId: _effectiveDoctorId,
+                                            practiceCentreId: _effectivePracticeCentreId ?? '',
+                                          );
+                                          if (added == true) {
+                                            await _initInitialPatient();
+                                          }
+                                        },
+                                        icon: Icons.person_add_rounded,
+                                        label: 'Add Patient',
                                       ),
-                                      const SizedBox(height: 16),
-                                      Text(
-                                        'No patients are currently in this session.',
-                                        style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                                          fontWeight: FontWeight.bold,
-                                        ),
-                                        textAlign: TextAlign.center,
-                                      ),
-                                      const SizedBox(height: 8),
-                                      Text(
-                                        'Add a patient directly to start or conduct this session.',
-                                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                                          color: Theme.of(context).colorScheme.onSurfaceVariant,
-                                        ),
-                                        textAlign: TextAlign.center,
-                                      ),
-                                      const SizedBox(height: 20),
-                                      Row(
-                                        mainAxisAlignment: MainAxisAlignment.center,
-                                        children: [
-                                          FilledButton.icon(
-                                            onPressed: () async {
-                                              final added = await AddPatientSheet.show(
-                                                context,
-                                                doctorId: _effectiveDoctorId,
-                                                practiceCentreId: _effectivePracticeCentreId ?? '',
-                                              );
-                                              if (added == true) {
-                                                await _initInitialPatient();
-                                              }
-                                            },
-                                            icon: const Icon(Icons.person_add_rounded),
-                                            label: const Text('Add Patient'),
-                                            style: FilledButton.styleFrom(
-                                              backgroundColor: AppColors.accent,
-                                            ),
-                                          ),
-                                          const SizedBox(width: 12),
-                                          OutlinedButton.icon(
-                                            onPressed: () => _initInitialPatient(),
-                                            icon: const Icon(Icons.refresh_rounded),
-                                            label: const Text('Refresh'),
-                                          ),
-                                        ],
+                                      const SizedBox(width: 12),
+                                      AppSecondaryButton(
+                                        onPressed: () => _initInitialPatient(),
+                                        icon: Icons.refresh_rounded,
+                                        label: 'Refresh',
                                       ),
                                     ],
                                   ),
@@ -528,27 +497,23 @@ class _ActivePatientBanner extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
-    return Card(
+    return AppCard(
       color: theme.colorScheme.primaryContainer.withValues(alpha: 0.25),
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(16),
-        side: BorderSide(
-          color: theme.colorScheme.primary.withValues(alpha: 0.35),
-        ),
+      border: Border.all(
+        color: theme.colorScheme.primary.withValues(alpha: 0.35),
       ),
-      child: InkWell(
-        onTap: () {
-          showModalBottomSheet(
-            context: context,
-            isScrollControlled: true,
-            builder: (ctx) => _PatientHistorySheet(patient: patient, ref: ref),
-          );
-        },
-        borderRadius: BorderRadius.circular(16),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-          child: Row(
-            children: [
+      padding: EdgeInsets.zero,
+      onTap: () {
+        showModalBottomSheet(
+          context: context,
+          isScrollControlled: true,
+          builder: (ctx) => _PatientHistorySheet(patient: patient, ref: ref),
+        );
+      },
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+        child: Row(
+          children: [
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
               decoration: BoxDecoration(
@@ -609,7 +574,6 @@ class _ActivePatientBanner extends ConsumerWidget {
           ],
         ),
       ),
-      ),
     );
   }
 }
@@ -622,21 +586,17 @@ class _NoteReadyCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    return Card(
+    return AppCard(
       color: AppColors.success.withValues(alpha: 0.08),
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(20),
-        side: BorderSide(
-          color: AppColors.success.withValues(alpha: 0.4),
-        ),
+      border: Border.all(
+        color: AppColors.success.withValues(alpha: 0.4),
       ),
-      child: InkWell(
-        borderRadius: BorderRadius.circular(20),
-        onTap: onOpen,
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(16, 14, 12, 14),
-          child: Row(
-            children: [
+      padding: EdgeInsets.zero,
+      onTap: onOpen,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(16, 14, 12, 14),
+        child: Row(
+          children: [
               const Icon(
                 Icons.assignment_turned_in_rounded,
                 color: AppColors.success,
@@ -651,17 +611,13 @@ class _NoteReadyCard extends StatelessWidget {
                   ),
                 ),
               ),
-              FilledButton(
+              AppPrimaryButton(
                 onPressed: onOpen,
-                style: FilledButton.styleFrom(
-                  backgroundColor: AppColors.success,
-                ),
-                child: const Text('Open'),
+                label: 'Open',
               ),
             ],
           ),
         ),
-      ),
     );
   }
 }
@@ -735,11 +691,10 @@ class _PatientHistorySheetState extends State<_PatientHistorySheet> {
                       itemCount: _notes!.length,
                       itemBuilder: (ctx, i) {
                         final note = _notes![i];
-                        return Card(
-                          margin: const EdgeInsets.only(bottom: 12),
-                          child: Padding(
-                            padding: const EdgeInsets.all(12),
-                            child: Column(
+                        return AppCard(
+                          margin: const EdgeInsets.only(bottom: AppSpacing.md),
+                          padding: const EdgeInsets.all(AppSpacing.md),
+                          child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 Row(
@@ -762,7 +717,6 @@ class _PatientHistorySheetState extends State<_PatientHistorySheet> {
                                 ),
                               ],
                             ),
-                          ),
                         );
                       },
                     ),

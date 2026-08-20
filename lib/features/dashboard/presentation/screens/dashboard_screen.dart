@@ -5,6 +5,8 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../../../../app/router.dart';
 import '../../../../core/config/app_config.dart';
+import '../../../../design_system/widgets/app_buttons.dart';
+import '../../../../design_system/widgets/empty_state.dart';
 import '../../../auth/presentation/controllers/auth_controller.dart';
 import '../../../auth/presentation/controllers/auth_state.dart';
 import '../controllers/dashboard_controller.dart';
@@ -79,12 +81,9 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
               onPressed: () => Navigator.of(dialogContext).pop(false),
               child: const Text('Cancel'),
             ),
-            FilledButton(
+            AppPrimaryButton(
               onPressed: () => Navigator.of(dialogContext).pop(true),
-              style: FilledButton.styleFrom(
-                backgroundColor: Colors.orange,
-              ),
-              child: const Text('Continue Anyway'),
+              label: 'Continue Anyway',
             ),
           ],
         );
@@ -266,10 +265,10 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                           style: theme.textTheme.bodyMedium,
                         ),
                         const SizedBox(height: 20),
-                        FilledButton.icon(
+                        AppPrimaryButton(
                           onPressed: () => dashboardNotifier.loadDashboard(),
-                          icon: const Icon(Icons.refresh_rounded),
-                          label: const Text('Try Again'),
+                          icon: Icons.refresh_rounded,
+                          label: 'Try Again',
                         ),
                       ],
                     ),
@@ -278,40 +277,14 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
               }
 
               if (dashboardState.summaries.isEmpty) {
-                return Center(
-                  child: Padding(
-                    padding: const EdgeInsets.all(24),
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(
-                          Icons.local_hospital_outlined,
-                          size: 56,
-                          color: theme.colorScheme.onSurfaceVariant,
-                        ),
-                        const SizedBox(height: 16),
-                        Text(
-                          'No Practice Centres Assigned',
-                          style: theme.textTheme.titleMedium?.copyWith(
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                        const SizedBox(height: 8),
-                        Text(
-                          'Please configure your practice centres in the web settings.',
-                          textAlign: TextAlign.center,
-                          style: theme.textTheme.bodyMedium?.copyWith(
-                            color: theme.colorScheme.onSurfaceVariant,
-                          ),
-                        ),
-                        const SizedBox(height: 24),
-                        OutlinedButton.icon(
-                          onPressed: () => dashboardNotifier.loadDashboard(),
-                          icon: const Icon(Icons.refresh_rounded),
-                          label: const Text('Check Again'),
-                        ),
-                      ],
-                    ),
+                return EmptyState(
+                  icon: Icons.local_hospital_outlined,
+                  title: 'No Practice Centres Assigned',
+                  description: 'Please configure your practice centres in the web settings.',
+                  action: AppSecondaryButton(
+                    onPressed: () => dashboardNotifier.loadDashboard(),
+                    icon: Icons.refresh_rounded,
+                    label: 'Check Again',
                   ),
                 );
               }

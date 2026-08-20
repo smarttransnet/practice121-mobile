@@ -3,7 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../features/auth/presentation/controllers/auth_controller.dart';
 import 'router.dart';
-import 'theme/app_theme.dart';
+import '../design_system/app_theme.dart';
 
 class Practice121App extends ConsumerStatefulWidget {
   const Practice121App({super.key});
