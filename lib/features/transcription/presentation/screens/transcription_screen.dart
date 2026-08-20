@@ -53,9 +53,12 @@ class _TranscriptionScreenState extends ConsumerState<TranscriptionScreen> {
     final state = ref.read(transcriptionControllerProvider);
     if (state.activePatient == null) {
       final controller = ref.read(transcriptionControllerProvider.notifier);
+      final now = DateTime.now();
+      final todayStr = '${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}';
       await controller.advanceNextPatient(
         doctorId: _effectiveDoctorId,
         practiceCentreId: _effectivePracticeCentreId,
+        visitDate: todayStr,
       );
     }
   }
@@ -97,11 +100,13 @@ class _TranscriptionScreenState extends ConsumerState<TranscriptionScreen> {
       }
     }
 
-    // If starting a recording and no patient is active yet, auto-retrieve the first patient in queue
     if (!state.isRecording && state.activePatient == null) {
+      final now = DateTime.now();
+      final todayStr = '${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}';
       await controller.advanceNextPatient(
         doctorId: _effectiveDoctorId,
         practiceCentreId: _effectivePracticeCentreId,
+        visitDate: todayStr,
       );
     }
 
@@ -233,6 +238,7 @@ class _TranscriptionScreenState extends ConsumerState<TranscriptionScreen> {
                             setState(() {
                               _hasStartedSession = true;
                             });
+                            _handleMicPressed();
                           },
                         )
                       : Center(

@@ -254,7 +254,7 @@ class TranscriptionController extends StateNotifier<TranscriptionState> with Wid
 
       state = state.copyWith(
         status: SessionStatus.noteReady,
-        processedNote: amended,
+        processedNote: _stripJsonBlock(amended),
         amendmentHistory: [...state.amendmentHistory, command],
         clearError: true,
       );
@@ -500,7 +500,7 @@ $amendments
 $prescription
 
 - Session -
-https://storage.googleapis.com/note366-stt-frontend-dev/index.html
+${_config.sessionFrontendUrl}
 ''';
 
     state = state.copyWith(isSendingEmail: true, clearError: true);
@@ -728,7 +728,7 @@ Practice121
 
       state = state.copyWith(
         status: SessionStatus.noteReady,
-        processedNote: event.processedNote,
+        processedNote: _stripJsonBlock(event.processedNote!),
         originalProcessedNote: event.processedNote, // Initial version
         fullTranscript: event.fullTranscript,
         interim: '',

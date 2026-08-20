@@ -76,9 +76,12 @@ class _PatientQueueScreenState extends ConsumerState<PatientQueueScreen> {
 
   Future<void> _startNextPatient() async {
     final controller = ref.read(transcriptionControllerProvider.notifier);
+    final now = DateTime.now();
+    final todayStr = '${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}';
     final res = await controller.advanceNextPatient(
       doctorId: widget.doctorId,
       practiceCentreId: widget.practiceCentreId,
+      visitDate: todayStr,
     );
 
     if (!mounted) return;
@@ -317,21 +320,23 @@ class _PatientQueueScreenState extends ConsumerState<PatientQueueScreen> {
                       ),
                     ],
                   ),
-                  const SizedBox(height: 10),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: OutlinedButton.icon(
-                          onPressed: waitingTickets.isNotEmpty ? _startNextPatient : null,
-                          icon: const Icon(Icons.play_arrow_rounded, size: 18),
-                          label: const Text('Start Next'),
-                          style: OutlinedButton.styleFrom(
-                            padding: const EdgeInsets.symmetric(vertical: 10),
+                  if (waitingTickets.isNotEmpty) ...[
+                    const SizedBox(height: 10),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: OutlinedButton.icon(
+                            onPressed: _startNextPatient,
+                            icon: const Icon(Icons.play_arrow_rounded, size: 18),
+                            label: const Text('Start Next'),
+                            style: OutlinedButton.styleFrom(
+                              padding: const EdgeInsets.symmetric(vertical: 10),
+                            ),
                           ),
                         ),
-                      ),
-                    ],
-                  ),
+                      ],
+                    ),
+                  ],
                 ],
               ),
             ),
