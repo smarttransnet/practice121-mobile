@@ -3,11 +3,14 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../app/theme/app_colors.dart';
+import '../../../../core/utils/age_helper.dart';
+import '../../../../core/utils/nic_decoder.dart';
+import '../../../dashboard/data/models/practice_centre.dart';
 import '../../data/services/queue_service.dart';
 import '../controllers/transcription_controller.dart';
 import 'add_child_dialog.dart';
 
-enum AddPatientMode { input, otp, select, verified, notFound }
+enum AddPatientMode { input, otp, select, verified, notFound, register }
 
 /// Multi-step Modal sheet for adding a patient to the current session queue.
 /// Supports OTP verification, patient lookup, and priority assignment matching Web.
@@ -17,6 +20,7 @@ class AddPatientSheet extends ConsumerStatefulWidget {
     required this.doctorId,
     required this.practiceCentreId,
     this.sessionId,
+    this.availableSessions = const [],
     this.existingTickets = const [],
     this.onPatientAdded,
   });
@@ -24,6 +28,7 @@ class AddPatientSheet extends ConsumerStatefulWidget {
   final String doctorId;
   final String practiceCentreId;
   final String? sessionId;
+  final List<DaySessionSlot> availableSessions;
   final List<QueueTicket> existingTickets;
   final VoidCallback? onPatientAdded;
 
@@ -32,6 +37,7 @@ class AddPatientSheet extends ConsumerStatefulWidget {
     required String doctorId,
     required String practiceCentreId,
     String? sessionId,
+    List<DaySessionSlot> availableSessions = const [],
     List<QueueTicket> existingTickets = const [],
   }) {
     return showModalBottomSheet<bool>(
@@ -53,6 +59,7 @@ class AddPatientSheet extends ConsumerStatefulWidget {
               doctorId: doctorId,
               practiceCentreId: practiceCentreId,
               sessionId: sessionId,
+              availableSessions: availableSessions,
               existingTickets: existingTickets,
             ),
           ),
@@ -74,6 +81,19 @@ class _AddPatientSheetState extends ConsumerState<AddPatientSheet> {
   final _lastNameController = TextEditingController();
   final _nicController = TextEditingController();
 
+  // Registration form controllers
+  final _regFormKey = GlobalKey<FormState>();
+  final _regFirstNameController = TextEditingController();
+  final _regLastNameController = TextEditingController();
+  final _regDobController = TextEditingController();
+  final _regNicController = TextEditingController();
+  DateTime? _regSelectedDob;
+  String _regGender = '';
+  String? _regNicError;
+  bool _regAutoFilledFromNic = false;
+
+  String? _selectedSessionId;
+
   AddPatientMode _mode = AddPatientMode.input;
   bool _showAdvancedSearch = false;
 
@@ -89,12 +109,25 @@ class _AddPatientSheetState extends ConsumerState<AddPatientSheet> {
   Timer? _cooldownTimer;
 
   @override
+  void initState() {
+    super.initState();
+    _selectedSessionId = widget.sessionId ??
+        (widget.availableSessions.isNotEmpty
+            ? widget.availableSessions.first.id
+            : null);
+  }
+
+  @override
   void dispose() {
     _mobileController.dispose();
     _otpController.dispose();
     _firstNameController.dispose();
     _lastNameController.dispose();
     _nicController.dispose();
+    _regFirstNameController.dispose();
+    _regLastNameController.dispose();
+    _regDobController.dispose();
+    _regNicController.dispose();
     _cooldownTimer?.cancel();
     super.dispose();
   }
@@ -164,10 +197,10 @@ class _AddPatientSheetState extends ConsumerState<AddPatientSheet> {
 
         final otpRes = await queueService.sendPatientOtp(normalized);
 
-        if (otpRes.patientExists && otpRes.sessionId != null) {
+        if (otpRes.sessionId != null) {
           _otpSessionId = otpRes.sessionId;
           _maskedMobile = otpRes.maskedMobile ?? normalized;
-          _startCooldown(otpRes.cooldownSeconds ?? 30);
+          _startCooldown(otpRes.cooldownSeconds ?? 60);
           setState(() {
             _mode = AddPatientMode.otp;
             _isSubmitting = false;
@@ -240,12 +273,27 @@ class _AddPatientSheetState extends ConsumerState<AddPatientSheet> {
           verificationToken: verifyRes.verificationToken,
         );
 
-        if (lookup != null) {
+        if (lookup != null && lookup.primaryPatient.id.isNotEmpty) {
           setState(() {
             _primaryPatientRecord = lookup.primaryPatient;
             _verifiedChildren = List.from(lookup.children);
             _verifiedPatient = lookup.primaryPatient;
             _mode = AddPatientMode.verified;
+            _isSubmitting = false;
+          });
+          return;
+        } else {
+          // New mobile number with no records -> Go directly to register patient step
+          _regFirstNameController.clear();
+          _regLastNameController.clear();
+          _regDobController.clear();
+          _regNicController.clear();
+          _regSelectedDob = null;
+          _regGender = '';
+          _regNicError = null;
+          _regAutoFilledFromNic = false;
+          setState(() {
+            _mode = AddPatientMode.register;
             _isSubmitting = false;
           });
           return;
@@ -375,7 +423,7 @@ class _AddPatientSheetState extends ConsumerState<AddPatientSheet> {
         priority: _priority,
         visitDate: todayStr,
         patientId: _verifiedPatient?.id,
-        sessionId: widget.sessionId,
+        sessionId: _selectedSessionId ?? widget.sessionId,
       );
 
       if (mounted) {
@@ -431,7 +479,9 @@ class _AddPatientSheetState extends ConsumerState<AddPatientSheet> {
                             ? 'Patient Verified'
                             : _mode == AddPatientMode.select
                                 ? 'Select Patient Record'
-                                : 'Add Patient to Queue',
+                                : _mode == AddPatientMode.register
+                                    ? 'Register New Patient'
+                                    : 'Add Patient to Queue',
                     style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
                   ),
                 ),
@@ -474,6 +524,7 @@ class _AddPatientSheetState extends ConsumerState<AddPatientSheet> {
             if (_mode == AddPatientMode.otp) _buildOtpStep(theme),
             if (_mode == AddPatientMode.select) _buildSelectStep(theme),
             if (_mode == AddPatientMode.notFound) _buildNotFoundStep(theme),
+            if (_mode == AddPatientMode.register) _buildRegisterStep(theme),
             if (_mode == AddPatientMode.verified) _buildVerifiedStep(theme),
           ],
         ),
@@ -693,11 +744,327 @@ class _AddPatientSheetState extends ConsumerState<AddPatientSheet> {
         ),
         const SizedBox(height: 20),
 
+        FilledButton.icon(
+          onPressed: () {
+            // Pre-clear registration fields
+            _regFirstNameController.clear();
+            _regLastNameController.clear();
+            _regDobController.clear();
+            _regNicController.clear();
+            _regSelectedDob = null;
+            _regGender = '';
+            setState(() => _mode = AddPatientMode.register);
+          },
+          icon: const Icon(Icons.person_add_rounded),
+          label: const Text('Register New Patient'),
+          style: FilledButton.styleFrom(
+            backgroundColor: AppColors.accent,
+            padding: const EdgeInsets.symmetric(vertical: 14),
+          ),
+        ),
+        const SizedBox(height: 12),
         OutlinedButton(
           onPressed: () => setState(() => _mode = AddPatientMode.input),
-          child: const Text('Back'),
+          child: const Text('Back to Search'),
         ),
       ],
+    );
+  }
+
+  void _onRegNicChanged(String val) {
+    final trimmed = val.trim();
+    if (trimmed.isEmpty) {
+      setState(() {
+        _regNicError = null;
+        _regAutoFilledFromNic = false;
+      });
+      return;
+    }
+
+    final decode = decodeNic(trimmed);
+    if (decode.isValid && decode.normalizedNic != null) {
+      setState(() {
+        _regNicError = null;
+        _regAutoFilledFromNic = true;
+        if (decode.dateOfBirth != null) {
+          _regDobController.text = decode.dateOfBirth!;
+          _regSelectedDob = DateTime.tryParse(decode.dateOfBirth!);
+        }
+        if (decode.gender != null) {
+          _regGender = decode.gender!;
+        }
+      });
+    } else {
+      setState(() {
+        _regAutoFilledFromNic = false;
+        if (trimmed.length >= 10) {
+          _regNicError = decode.error ?? 'Please enter a valid Sri Lankan NIC number.';
+        } else {
+          _regNicError = null;
+        }
+      });
+    }
+  }
+
+  Future<void> _pickRegDob(BuildContext context) async {
+    final now = DateTime.now();
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: _regSelectedDob ?? DateTime(now.year - 25, now.month, now.day),
+      firstDate: DateTime(1900),
+      lastDate: now,
+      helpText: 'Select Patient Date of Birth',
+    );
+    if (picked != null) {
+      final dobStr =
+          '${picked.year}-${picked.month.toString().padLeft(2, '0')}-${picked.day.toString().padLeft(2, '0')}';
+      setState(() {
+        _regSelectedDob = picked;
+        _regDobController.text = dobStr;
+
+        // Cross-check with NIC if entered
+        final nic = _regNicController.text.trim();
+        if (nic.isNotEmpty) {
+          final decode = decodeNic(nic);
+          if (decode.isValid && decode.dateOfBirth != null && decode.dateOfBirth != dobStr) {
+            _regNicError = 'Date of birth does not match the provided NIC. Please check both values.';
+          } else if (decode.isValid) {
+            _regNicError = null;
+          }
+        }
+      });
+    }
+  }
+
+  Future<void> _handleRegisterPatient() async {
+    if (!(_regFormKey.currentState?.validate() ?? false)) return;
+
+    final firstName = _regFirstNameController.text.trim();
+    if (firstName.isEmpty) {
+      setState(() => _errorMessage = 'First name is required');
+      return;
+    }
+
+    final dobStr = _regDobController.text.trim();
+    final nic = _regNicController.text.trim();
+
+    // Age validation: if over 18, NIC is required
+    final age = calculateAge(dobStr);
+    if (age.years > 18 && nic.isEmpty) {
+      setState(() => _errorMessage = 'NIC is required for patients over 18 years old.');
+      return;
+    }
+
+    // NIC validation and cross-check
+    if (nic.isNotEmpty) {
+      final decode = decodeNic(nic);
+      if (!decode.isValid) {
+        setState(() => _errorMessage = decode.error ?? 'Please enter a valid Sri Lankan NIC number.');
+        return;
+      }
+
+      if (dobStr.isNotEmpty && decode.dateOfBirth != null && decode.dateOfBirth != dobStr) {
+        setState(() => _errorMessage = 'Date of birth does not match the provided NIC. Please check both values.');
+        return;
+      }
+    }
+
+    setState(() {
+      _isSubmitting = true;
+      _errorMessage = null;
+    });
+
+    try {
+      final queueService = ref.read(queueServiceProvider);
+      final mobile = _pendingMobile ?? _normalizeLkMobile(_mobileController.text.trim());
+
+      final newPatientId = await queueService.registerPatient(
+        firstName: firstName,
+        lastName: _regLastNameController.text.trim().isNotEmpty ? _regLastNameController.text.trim() : null,
+        dateOfBirth: dobStr.isNotEmpty ? dobStr : null,
+        nicNumber: nic.isNotEmpty ? normalizeNic(nic) : null,
+        gender: _regGender.isNotEmpty ? _regGender : null,
+        mobileNumber: mobile,
+        isMobileOwner: true,
+        createdByDoctorId: widget.doctorId,
+      );
+
+      // Registration succeeded — set verified patient and proceed to queue step
+      setState(() {
+        _verifiedPatient = PatientRecord(
+          id: newPatientId,
+          firstName: firstName,
+          lastName: _regLastNameController.text.trim().isNotEmpty ? _regLastNameController.text.trim() : null,
+          mobileNumber: mobile,
+          nicNumber: nic.isNotEmpty ? normalizeNic(nic) : null,
+          dateOfBirth: dobStr.isNotEmpty ? dobStr : null,
+          gender: _regGender.isNotEmpty ? _regGender : null,
+        );
+        _primaryPatientRecord = _verifiedPatient;
+        _verifiedChildren = [];
+        _mode = AddPatientMode.verified;
+        _isSubmitting = false;
+      });
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _errorMessage = e.toString().replaceAll('Exception: ', '');
+          _isSubmitting = false;
+        });
+      }
+    }
+  }
+
+  Widget _buildRegisterStep(ThemeData theme) {
+    final dobStr = _regDobController.text.trim();
+    final ageInfo = calculateAge(dobStr);
+
+    return Form(
+      key: _regFormKey,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: AppColors.accent.withValues(alpha: 0.08),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: AppColors.accent.withValues(alpha: 0.3)),
+            ),
+            child: Row(
+              children: [
+                const Icon(Icons.verified_user_rounded, color: AppColors.accent, size: 20),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    'Verified Mobile: ${_pendingMobile ?? _mobileController.text.trim()}',
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: AppColors.accent,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 16),
+
+          // First Name *
+          TextFormField(
+            controller: _regFirstNameController,
+            textCapitalization: TextCapitalization.words,
+            decoration: const InputDecoration(
+              labelText: 'First Name *',
+              isDense: true,
+              border: OutlineInputBorder(),
+              prefixIcon: Icon(Icons.person_rounded, size: 20),
+            ),
+            validator: (val) {
+              if (val == null || val.trim().isEmpty) return 'First name is required';
+              return null;
+            },
+          ),
+          const SizedBox(height: 12),
+
+          // Last Name
+          TextFormField(
+            controller: _regLastNameController,
+            textCapitalization: TextCapitalization.words,
+            decoration: const InputDecoration(
+              labelText: 'Last Name',
+              isDense: true,
+              border: OutlineInputBorder(),
+              prefixIcon: Icon(Icons.person_outline_rounded, size: 20),
+            ),
+          ),
+          const SizedBox(height: 12),
+
+          // Date of Birth
+          TextFormField(
+            controller: _regDobController,
+            readOnly: true,
+            onTap: () => _pickRegDob(context),
+            decoration: InputDecoration(
+              labelText: 'Date of Birth',
+              hintText: 'yyyy-mm-dd',
+              isDense: true,
+              border: const OutlineInputBorder(),
+              prefixIcon: const Icon(Icons.calendar_today_rounded, size: 20),
+              suffixIcon: IconButton(
+                icon: const Icon(Icons.calendar_today_rounded, size: 20),
+                onPressed: () => _pickRegDob(context),
+              ),
+              helperText: dobStr.isNotEmpty ? 'Age: ${ageInfo.formatted}' : 'Required if over 18 years old',
+            ),
+          ),
+          const SizedBox(height: 12),
+
+          // NIC Number
+          TextFormField(
+            controller: _regNicController,
+            onChanged: _onRegNicChanged,
+            decoration: InputDecoration(
+              labelText: 'NIC Number (Optional if under 18)',
+              hintText: 'e.g. 882441524V or 199824401524',
+              isDense: true,
+              border: const OutlineInputBorder(),
+              prefixIcon: const Icon(Icons.badge_rounded, size: 20),
+              errorText: _regNicError,
+              helperText: _regAutoFilledFromNic ? 'DOB and Gender auto-filled from NIC' : null,
+              helperStyle: const TextStyle(color: Colors.green, fontWeight: FontWeight.w600),
+            ),
+          ),
+          const SizedBox(height: 12),
+
+          // Gender
+          DropdownButtonFormField<String>(
+            key: ValueKey(_regGender),
+            initialValue: _regGender.isEmpty ? null : _regGender,
+            decoration: InputDecoration(
+              labelText: 'Gender',
+              isDense: true,
+              border: const OutlineInputBorder(),
+              prefixIcon: const Icon(Icons.wc_rounded, size: 20),
+              helperText: _regAutoFilledFromNic ? 'Auto-filled from NIC' : null,
+            ),
+            items: const [
+              DropdownMenuItem(value: 'Male', child: Text('Male')),
+              DropdownMenuItem(value: 'Female', child: Text('Female')),
+              DropdownMenuItem(value: 'Other', child: Text('Other')),
+            ],
+            onChanged: (val) {
+              if (val != null) setState(() => _regGender = val);
+            },
+          ),
+          const SizedBox(height: 20),
+
+          Row(
+            children: [
+              Expanded(
+                child: OutlinedButton(
+                  onPressed: _isSubmitting ? null : () => setState(() => _mode = AddPatientMode.input),
+                  child: const Text('Cancel'),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                flex: 2,
+                child: FilledButton.icon(
+                  onPressed: _isSubmitting ? null : _handleRegisterPatient,
+                  icon: _isSubmitting
+                      ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                      : const Icon(Icons.person_add_rounded),
+                  label: Text(_isSubmitting ? 'Registering...' : 'Save & Continue'),
+                  style: FilledButton.styleFrom(
+                    backgroundColor: AppColors.accent,
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
     );
   }
 
@@ -772,6 +1139,35 @@ class _AddPatientSheetState extends ConsumerState<AddPatientSheet> {
             subtitle: 'Dependent (Child) • ${child.gender != null ? 'Gender: ${child.gender}' : 'Child Patient'}',
             isSelected: selectedId == child.id,
             onTap: () => setState(() => _verifiedPatient = child),
+          ),
+        ],
+
+        if (widget.availableSessions.length > 1) ...[
+          const SizedBox(height: 16),
+          Text(
+            'Session Time Slot',
+            style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w600),
+          ),
+          const SizedBox(height: 8),
+          DropdownButtonFormField<String>(
+            value: _selectedSessionId ??
+                (widget.availableSessions.isNotEmpty
+                    ? widget.availableSessions.first.id
+                    : null),
+            decoration: const InputDecoration(
+              isDense: true,
+              border: OutlineInputBorder(),
+              prefixIcon: Icon(Icons.access_time_rounded, size: 20),
+            ),
+            items: widget.availableSessions.map((s) {
+              return DropdownMenuItem(
+                value: s.id,
+                child: Text('${s.label} (${s.timeRange})'),
+              );
+            }).toList(),
+            onChanged: (val) {
+              if (val != null) setState(() => _selectedSessionId = val);
+            },
           ),
         ],
 

@@ -93,6 +93,7 @@ class QueueTicket {
     required this.patientMobile,
     required this.status, // 0: Waiting, 1: Ready, 2: Called, 3: In Consultation, 4: Completed, 5: Cancelled
     required this.priority, // 0: Normal, 1: High, 2: Emergency
+    this.sessionId,
     this.sessionName,
     this.patientId,
   });
@@ -103,6 +104,7 @@ class QueueTicket {
   final String patientMobile;
   final int status;
   final int priority;
+  final String? sessionId;
   final String? sessionName;
 
   /// Stable Practice121 PatientAccount id when the ticket is linked.
@@ -115,13 +117,18 @@ class QueueTicket {
     final rawPatientId = json['patientId']?.toString().trim();
     return QueueTicket(
       id: json['id']?.toString() ?? '',
-      queueNumber: (json['queueNumber'] as num?)?.toInt() ?? (json['queueOrder'] as num?)?.toInt() ?? 1,
+      queueNumber: (json['queueNumber'] as num?)?.toInt() ??
+          (json['queueOrder'] as num?)?.toInt() ??
+          1,
       patientName: json['patientName']?.toString() ?? 'Patient',
       patientMobile: json['patientMobile']?.toString() ?? '',
       status: (json['status'] as num?)?.toInt() ?? 0,
       priority: (json['priority'] as num?)?.toInt() ?? 0,
-      sessionName: json['sessionName']?.toString() ?? json['sessionLabel']?.toString(),
-      patientId: (rawPatientId == null || rawPatientId.isEmpty) ? null : rawPatientId,
+      sessionId: json['sessionId']?.toString(),
+      sessionName: json['sessionName']?.toString() ??
+          json['sessionLabel']?.toString(),
+      patientId:
+          (rawPatientId == null || rawPatientId.isEmpty) ? null : rawPatientId,
     );
   }
 }
@@ -207,6 +214,7 @@ class QueueService {
     required String doctorId,
     String? practiceCentreId,
     String? visitDate,
+    String? sessionId,
   }) async {
     if (doctorId.trim().isEmpty) {
       throw const UnexpectedFailure(
@@ -228,6 +236,7 @@ class QueueService {
                 'doctorId': doctorId,
                 'practiceCentreId': practiceCentreId,
                 'visitDate': visitDate,
+                'sessionId': sessionId,
               }),
             )
           : await http.post(
@@ -237,6 +246,7 @@ class QueueService {
                 'doctorId': doctorId,
                 'practiceCentreId': practiceCentreId,
                 'visitDate': visitDate,
+                'sessionId': sessionId,
               }),
             );
 
@@ -561,6 +571,72 @@ class QueueService {
       rethrow;
     } catch (e) {
       throw UnexpectedFailure('Could not add child patient: $e');
+    }
+  }
+
+  /// Registers a new patient via `POST /api/patients/register`.
+  /// Returns the new patient's ID (Guid).
+  Future<String> registerPatient({
+    required String firstName,
+    String? lastName,
+    String? dateOfBirth,
+    String? nicNumber,
+    String? gender,
+    required String mobileNumber,
+    required bool isMobileOwner,
+    String? createdByDoctorId,
+  }) async {
+    final uri = Uri.parse('$_baseUrl/api/patients/register');
+    final body = <String, dynamic>{
+      'firstName': firstName,
+      'mobileNumber': mobileNumber,
+      'isMobileOwner': isMobileOwner,
+      if (lastName != null && lastName.isNotEmpty) 'lastName': lastName,
+      if (dateOfBirth != null && dateOfBirth.isNotEmpty) 'dateOfBirth': dateOfBirth,
+      if (nicNumber != null && nicNumber.isNotEmpty) 'nicNumber': nicNumber,
+      if (gender != null && gender.isNotEmpty) 'gender': gender,
+      if (createdByDoctorId != null && createdByDoctorId.isNotEmpty)
+        'createdByDoctorId': createdByDoctorId,
+    };
+
+    try {
+      final response = _apiClient != null
+          ? await _apiClient.post(
+              uri,
+              headers: {'Content-Type': 'application/json'},
+              body: jsonEncode(body),
+            )
+          : await http.post(
+              uri,
+              headers: {'Content-Type': 'application/json'},
+              body: jsonEncode(body),
+            );
+
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        // API returns the new patient Guid as a JSON string
+        final decoded = jsonDecode(response.body);
+        if (decoded is String) return decoded;
+        if (decoded is Map<String, dynamic>) {
+          return decoded['id']?.toString() ?? decoded.values.first.toString();
+        }
+        return decoded.toString();
+      }
+
+      String message = 'Failed to register patient.';
+      try {
+        final err = jsonDecode(response.body);
+        if (err is Map<String, dynamic>) {
+          message = err['detail']?.toString() ??
+              err['title']?.toString() ??
+              err['message']?.toString() ??
+              message;
+        }
+      } catch (_) {}
+      throw UnexpectedFailure(message);
+    } on Failure {
+      rethrow;
+    } catch (e) {
+      throw UnexpectedFailure('Could not register patient: $e');
     }
   }
 }

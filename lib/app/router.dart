@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import '../features/auth/presentation/controllers/auth_controller.dart';
 import '../features/auth/presentation/screens/login_screen.dart';
+import '../features/dashboard/data/models/practice_centre.dart';
 import '../features/dashboard/presentation/screens/dashboard_screen.dart';
 import '../features/transcription/presentation/screens/patient_queue_screen.dart';
 import '../features/transcription/presentation/screens/transcription_screen.dart';
@@ -83,6 +84,9 @@ final routerProvider = Provider<GoRouter>((ref) {
             doctorId: extra?['doctorId'] as String? ?? '',
             practiceCentreId: extra?['practiceCentreId'] as String? ?? '',
             clinicName: extra?['clinicName'] as String? ?? 'Practice Centre',
+            practiceCentre: extra?['practiceCentre'] as PracticeCentre?,
+            initialSessionId: extra?['initialSessionId'] as String?,
+            initialSessionLabel: extra?['initialSessionLabel'] as String?,
           );
         },
       ),
