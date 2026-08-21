@@ -662,6 +662,7 @@ Practice121
     required String doctorId,
     String? practiceCentreId,
     String? visitDate,
+    String? sessionId,
   }) async {
     AppLogger.i('TranscriptionController.advanceNextPatient()');
     state = state.copyWith(isAdvancingQueue: true, clearError: true);
@@ -671,6 +672,7 @@ Practice121
         doctorId: doctorId,
         practiceCentreId: practiceCentreId,
         visitDate: visitDate,
+        sessionId: sessionId,
       );
 
       if (response.hasNextPatient && response.activePatient != null) {

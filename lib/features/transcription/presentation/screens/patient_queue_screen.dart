@@ -248,10 +248,16 @@ class _PatientQueueScreenState extends ConsumerState<PatientQueueScreen> {
     final now = DateTime.now();
     final todayStr =
         '${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}';
+    String? selectedSessionId;
+    if (_selectedSessionFilter != 'ALL') {
+      selectedSessionId = _selectedSessionFilter;
+    }
+
     final res = await controller.advanceNextPatient(
       doctorId: widget.doctorId,
       practiceCentreId: widget.practiceCentreId,
       visitDate: todayStr,
+      sessionId: selectedSessionId,
     );
 
     if (!mounted) return;

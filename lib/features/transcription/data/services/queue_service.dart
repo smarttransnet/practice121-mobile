@@ -214,6 +214,7 @@ class QueueService {
     required String doctorId,
     String? practiceCentreId,
     String? visitDate,
+    String? sessionId,
   }) async {
     if (doctorId.trim().isEmpty) {
       throw const UnexpectedFailure(
@@ -235,6 +236,7 @@ class QueueService {
                 'doctorId': doctorId,
                 'practiceCentreId': practiceCentreId,
                 'visitDate': visitDate,
+                'sessionId': sessionId,
               }),
             )
           : await http.post(
@@ -244,6 +246,7 @@ class QueueService {
                 'doctorId': doctorId,
                 'practiceCentreId': practiceCentreId,
                 'visitDate': visitDate,
+                'sessionId': sessionId,
               }),
             );
 
