@@ -93,6 +93,7 @@ class QueueTicket {
     required this.patientMobile,
     required this.status, // 0: Waiting, 1: Ready, 2: Called, 3: In Consultation, 4: Completed, 5: Cancelled
     required this.priority, // 0: Normal, 1: High, 2: Emergency
+    this.sessionId,
     this.sessionName,
     this.patientId,
   });
@@ -103,6 +104,7 @@ class QueueTicket {
   final String patientMobile;
   final int status;
   final int priority;
+  final String? sessionId;
   final String? sessionName;
 
   /// Stable Practice121 PatientAccount id when the ticket is linked.
@@ -115,13 +117,18 @@ class QueueTicket {
     final rawPatientId = json['patientId']?.toString().trim();
     return QueueTicket(
       id: json['id']?.toString() ?? '',
-      queueNumber: (json['queueNumber'] as num?)?.toInt() ?? (json['queueOrder'] as num?)?.toInt() ?? 1,
+      queueNumber: (json['queueNumber'] as num?)?.toInt() ??
+          (json['queueOrder'] as num?)?.toInt() ??
+          1,
       patientName: json['patientName']?.toString() ?? 'Patient',
       patientMobile: json['patientMobile']?.toString() ?? '',
       status: (json['status'] as num?)?.toInt() ?? 0,
       priority: (json['priority'] as num?)?.toInt() ?? 0,
-      sessionName: json['sessionName']?.toString() ?? json['sessionLabel']?.toString(),
-      patientId: (rawPatientId == null || rawPatientId.isEmpty) ? null : rawPatientId,
+      sessionId: json['sessionId']?.toString(),
+      sessionName: json['sessionName']?.toString() ??
+          json['sessionLabel']?.toString(),
+      patientId:
+          (rawPatientId == null || rawPatientId.isEmpty) ? null : rawPatientId,
     );
   }
 }

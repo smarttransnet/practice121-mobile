@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../app/theme/app_colors.dart';
 import '../../../../core/utils/age_helper.dart';
 import '../../../../core/utils/nic_decoder.dart';
+import '../../../dashboard/data/models/practice_centre.dart';
 import '../../data/services/queue_service.dart';
 import '../controllers/transcription_controller.dart';
 import 'add_child_dialog.dart';
@@ -19,6 +20,7 @@ class AddPatientSheet extends ConsumerStatefulWidget {
     required this.doctorId,
     required this.practiceCentreId,
     this.sessionId,
+    this.availableSessions = const [],
     this.existingTickets = const [],
     this.onPatientAdded,
   });
@@ -26,6 +28,7 @@ class AddPatientSheet extends ConsumerStatefulWidget {
   final String doctorId;
   final String practiceCentreId;
   final String? sessionId;
+  final List<DaySessionSlot> availableSessions;
   final List<QueueTicket> existingTickets;
   final VoidCallback? onPatientAdded;
 
@@ -34,6 +37,7 @@ class AddPatientSheet extends ConsumerStatefulWidget {
     required String doctorId,
     required String practiceCentreId,
     String? sessionId,
+    List<DaySessionSlot> availableSessions = const [],
     List<QueueTicket> existingTickets = const [],
   }) {
     return showModalBottomSheet<bool>(
@@ -55,6 +59,7 @@ class AddPatientSheet extends ConsumerStatefulWidget {
               doctorId: doctorId,
               practiceCentreId: practiceCentreId,
               sessionId: sessionId,
+              availableSessions: availableSessions,
               existingTickets: existingTickets,
             ),
           ),
@@ -87,6 +92,8 @@ class _AddPatientSheetState extends ConsumerState<AddPatientSheet> {
   String? _regNicError;
   bool _regAutoFilledFromNic = false;
 
+  String? _selectedSessionId;
+
   AddPatientMode _mode = AddPatientMode.input;
   bool _showAdvancedSearch = false;
 
@@ -100,6 +107,15 @@ class _AddPatientSheetState extends ConsumerState<AddPatientSheet> {
   String? _pendingMobile;
   int _cooldownSeconds = 0;
   Timer? _cooldownTimer;
+
+  @override
+  void initState() {
+    super.initState();
+    _selectedSessionId = widget.sessionId ??
+        (widget.availableSessions.isNotEmpty
+            ? widget.availableSessions.first.id
+            : null);
+  }
 
   @override
   void dispose() {
@@ -407,7 +423,7 @@ class _AddPatientSheetState extends ConsumerState<AddPatientSheet> {
         priority: _priority,
         visitDate: todayStr,
         patientId: _verifiedPatient?.id,
-        sessionId: widget.sessionId,
+        sessionId: _selectedSessionId ?? widget.sessionId,
       );
 
       if (mounted) {
@@ -1123,6 +1139,35 @@ class _AddPatientSheetState extends ConsumerState<AddPatientSheet> {
             subtitle: 'Dependent (Child) • ${child.gender != null ? 'Gender: ${child.gender}' : 'Child Patient'}',
             isSelected: selectedId == child.id,
             onTap: () => setState(() => _verifiedPatient = child),
+          ),
+        ],
+
+        if (widget.availableSessions.length > 1) ...[
+          const SizedBox(height: 16),
+          Text(
+            'Session Time Slot',
+            style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w600),
+          ),
+          const SizedBox(height: 8),
+          DropdownButtonFormField<String>(
+            value: _selectedSessionId ??
+                (widget.availableSessions.isNotEmpty
+                    ? widget.availableSessions.first.id
+                    : null),
+            decoration: const InputDecoration(
+              isDense: true,
+              border: OutlineInputBorder(),
+              prefixIcon: Icon(Icons.access_time_rounded, size: 20),
+            ),
+            items: widget.availableSessions.map((s) {
+              return DropdownMenuItem(
+                value: s.id,
+                child: Text('${s.label} (${s.timeRange})'),
+              );
+            }).toList(),
+            onChanged: (val) {
+              if (val != null) setState(() => _selectedSessionId = val);
+            },
           ),
         ],
 

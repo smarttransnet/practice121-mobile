@@ -4,9 +4,11 @@ import 'package:go_router/go_router.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../../../app/router.dart';
+import '../../../../app/theme/app_colors.dart';
 import '../../../../core/config/app_config.dart';
 import '../../../../design_system/widgets/app_buttons.dart';
 import '../../../../design_system/widgets/empty_state.dart';
+import '../../../../design_system/widgets/status_badge.dart';
 import '../../../auth/presentation/controllers/auth_controller.dart';
 import '../../../auth/presentation/controllers/auth_state.dart';
 import '../controllers/dashboard_controller.dart';
@@ -42,6 +44,16 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
       }
     }
 
+    DaySessionSlot? chosenSlot = summary.selectedSlot;
+
+    // If multiple sessions exist today and none was tapped directly, let doctor pick
+    if (summary.todaySlots.length > 1 && chosenSlot == null) {
+      chosenSlot = await _showSessionSlotSelectionSheet(context, summary);
+      if (!mounted) return;
+    }
+
+    if (!mounted) return;
+
     context.push(
       AppRoutes.patientQueue,
       extra: {
@@ -50,6 +62,133 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
             : (ref.read(authControllerProvider).doctorId ?? ''),
         'practiceCentreId': summary.centre.id,
         'clinicName': summary.centre.clinicName,
+        'practiceCentre': summary.centre,
+        'initialSessionId': chosenSlot?.id,
+        'initialSessionLabel': chosenSlot != null
+            ? '${chosenSlot.label} (${chosenSlot.timeRange})'
+            : null,
+      },
+    );
+  }
+
+  Future<DaySessionSlot?> _showSessionSlotSelectionSheet(
+    BuildContext context,
+    CentreSessionSummary summary,
+  ) {
+    final theme = Theme.of(context);
+    return showModalBottomSheet<DaySessionSlot>(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (sheetContext) {
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(20, 20, 20, 16),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: theme.colorScheme.primaryContainer
+                            .withValues(alpha: 0.5),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: Icon(Icons.access_time_filled_rounded,
+                          color: theme.colorScheme.primary),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Select Session Time Slot',
+                            style: theme.textTheme.titleMedium
+                                ?.copyWith(fontWeight: FontWeight.bold),
+                          ),
+                          Text(
+                            summary.centre.clinicName,
+                            style: theme.textTheme.bodySmall?.copyWith(
+                                color: theme.colorScheme.onSurfaceVariant),
+                          ),
+                        ],
+                      ),
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.close_rounded),
+                      onPressed: () => Navigator.of(sheetContext).pop(),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 14),
+                const Divider(height: 1),
+                const SizedBox(height: 12),
+                ...summary.todaySlots.map((slot) {
+                  final isSlotActive =
+                      slot.status == SessionScheduleStatus.active;
+                  return Padding(
+                    padding: const EdgeInsets.only(bottom: 8),
+                    child: ListTile(
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        side: BorderSide(
+                          color: isSlotActive
+                              ? AppColors.success
+                              : theme.colorScheme.outlineVariant,
+                          width: isSlotActive ? 1.5 : 1.0,
+                        ),
+                      ),
+                      tileColor: isSlotActive
+                          ? AppColors.success.withValues(alpha: 0.08)
+                          : theme.colorScheme.surfaceContainerHighest
+                              .withValues(alpha: 0.3),
+                      leading: CircleAvatar(
+                        backgroundColor: isSlotActive
+                            ? AppColors.success
+                            : theme.colorScheme.primary
+                                .withValues(alpha: 0.15),
+                        foregroundColor: isSlotActive
+                            ? Colors.white
+                            : theme.colorScheme.primary,
+                        child: Icon(
+                          isSlotActive
+                              ? Icons.play_arrow_rounded
+                              : Icons.schedule_rounded,
+                          size: 20,
+                        ),
+                      ),
+                      title: Text(
+                        '${slot.label} Session',
+                        style: const TextStyle(fontWeight: FontWeight.bold),
+                      ),
+                      subtitle: Text('Time: ${slot.timeRange}'),
+                      trailing: isSlotActive
+                          ? const StatusBadge(
+                              label: 'ACTIVE NOW',
+                              type: StatusBadgeType.success)
+                          : const Icon(Icons.chevron_right_rounded),
+                      onTap: () => Navigator.of(sheetContext).pop(slot),
+                    ),
+                  );
+                }),
+                const SizedBox(height: 4),
+                OutlinedButton.icon(
+                  onPressed: () => Navigator.of(sheetContext).pop(),
+                  icon: const Icon(Icons.apps_rounded),
+                  label: const Text('Show All Sessions / Entire Queue'),
+                  style: OutlinedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
       },
     );
   }

@@ -29,64 +29,112 @@ class SessionPrioritizer {
     final summaries = <CentreSessionSummary>[];
 
     for (final centre in centres) {
-      TimeBlock? todayTimeBlock;
-      bool isScheduledToday = false;
-
+      final todaySlots = <DaySessionSlot>[];
       final dateStr = now.toIso8601String().split('T').first;
 
-      // Search session groups for today's schedule
+      // Search all session groups for today's schedule
       for (final group in centre.sessionGroups) {
         if (group.daysOff.contains(dateStr)) continue;
 
-        final isSpecificDateMatch = group.specificDate == dateStr;
+        final isSpecificDateMatch = group.specificDate == dateStr ||
+            group.specificDates.contains(dateStr);
         final isDayOfWeekMatch = group.daysOfWeek.contains(currentDayAbbr);
-        
+
         if (isSpecificDateMatch || isDayOfWeekMatch) {
-          isScheduledToday = true;
           if (group.timeBlocks.isNotEmpty) {
-            todayTimeBlock = group.timeBlocks.first;
+            for (final tb in group.timeBlocks) {
+              final startMin = _parseTimeToMinutes(tb.startTime);
+              final endMin = _parseTimeToMinutes(tb.endTime);
+              SessionScheduleStatus slotStatus;
+
+              if (currentTimeInMinutes >= startMin &&
+                  currentTimeInMinutes <= endMin) {
+                slotStatus = SessionScheduleStatus.active;
+              } else if (currentTimeInMinutes < startMin) {
+                slotStatus = SessionScheduleStatus.upcoming;
+              } else {
+                slotStatus = SessionScheduleStatus.completed;
+              }
+
+              todaySlots.add(
+                DaySessionSlot(
+                  id: tb.id.isNotEmpty ? tb.id : group.id,
+                  groupId: group.id,
+                  label: tb.label.isNotEmpty ? tb.label : 'Session',
+                  startTime: tb.startTime,
+                  endTime: tb.endTime,
+                  timeRange: '${tb.startTime} - ${tb.endTime}',
+                  status: slotStatus,
+                ),
+              );
+            }
+          } else {
+            todaySlots.add(
+              DaySessionSlot(
+                id: group.id,
+                groupId: group.id,
+                label: 'Scheduled Session',
+                startTime: '09:00',
+                endTime: '17:00',
+                timeRange: group.daysOfWeek.join(', '),
+                status: SessionScheduleStatus.active,
+              ),
+            );
           }
-          break;
         }
       }
 
-      SessionScheduleStatus status = SessionScheduleStatus.notScheduledToday;
+      SessionScheduleStatus overallStatus =
+          SessionScheduleStatus.notScheduledToday;
       String timeRangeLabel = 'No Session Scheduled Today';
       int priorityRank = 1000;
+      DaySessionSlot? bestSlot;
 
-      if (isScheduledToday) {
-        final startTimeStr = todayTimeBlock?.startTime ?? '09:00';
-        final endTimeStr = todayTimeBlock?.endTime ?? '17:00';
-        final label = todayTimeBlock?.label ?? 'Session';
+      if (todaySlots.isNotEmpty) {
+        // Sort slots by start time
+        todaySlots.sort((a, b) =>
+            _parseTimeToMinutes(a.startTime).compareTo(_parseTimeToMinutes(b.startTime)));
 
-        timeRangeLabel = '$label ($startTimeStr - $endTimeStr)';
+        // Find active slot first, or next upcoming slot, or last completed slot
+        DaySessionSlot? activeSlot;
+        DaySessionSlot? upcomingSlot;
 
-        final startMinutes = _parseTimeToMinutes(startTimeStr);
-        final endMinutes = _parseTimeToMinutes(endTimeStr);
+        for (final slot in todaySlots) {
+          if (slot.status == SessionScheduleStatus.active && activeSlot == null) {
+            activeSlot = slot;
+          } else if (slot.status == SessionScheduleStatus.upcoming && upcomingSlot == null) {
+            upcomingSlot = slot;
+          }
+        }
 
-        if (currentTimeInMinutes >= startMinutes &&
-            currentTimeInMinutes <= endMinutes) {
-          // Currently ACTIVE session — top priority
-          status = SessionScheduleStatus.active;
+        if (activeSlot != null) {
+          overallStatus = SessionScheduleStatus.active;
+          bestSlot = activeSlot;
           priorityRank = 10;
-        } else if (currentTimeInMinutes < startMinutes) {
-          // UPCOMING session today — sorted by how soon it starts
-          status = SessionScheduleStatus.upcoming;
-          final minutesUntilStart = startMinutes - currentTimeInMinutes;
+          timeRangeLabel = '${activeSlot.label} (${activeSlot.timeRange})';
+        } else if (upcomingSlot != null) {
+          overallStatus = SessionScheduleStatus.upcoming;
+          bestSlot = upcomingSlot;
+          final startMin = _parseTimeToMinutes(upcomingSlot.startTime);
+          final minutesUntilStart = startMin - currentTimeInMinutes;
           priorityRank = 100 + minutesUntilStart;
+          timeRangeLabel = '${upcomingSlot.label} (${upcomingSlot.timeRange})';
         } else {
-          // COMPLETED session today
-          status = SessionScheduleStatus.completed;
-          priorityRank = 500 + (currentTimeInMinutes - endMinutes);
+          overallStatus = SessionScheduleStatus.completed;
+          bestSlot = todaySlots.last;
+          final endMin = _parseTimeToMinutes(bestSlot.endTime);
+          priorityRank = 500 + (currentTimeInMinutes - endMin);
+          timeRangeLabel = '${bestSlot.label} (${bestSlot.timeRange})';
         }
       } else if (centre.sessionGroups.isNotEmpty) {
         // Find next upcoming day label
         final firstGroup = centre.sessionGroups.first;
-        if (firstGroup.specificDate != null) {
+        if (firstGroup.specificDates.isNotEmpty) {
+          timeRangeLabel = 'Scheduled on ${firstGroup.specificDates.join(', ')}';
+        } else if (firstGroup.specificDate != null) {
           timeRangeLabel = 'Scheduled on ${firstGroup.specificDate}';
         } else if (firstGroup.daysOfWeek.isNotEmpty) {
-          timeRangeLabel =
-              'Scheduled on ${firstGroup.daysOfWeek.join(', ')}';
+          timeRangeLabel = 'Scheduled on ${firstGroup.daysOfWeek.join(', ')}';
         }
       }
 
@@ -101,13 +149,15 @@ class SessionPrioritizer {
       summaries.add(
         CentreSessionSummary(
           centre: centre,
-          status: status,
+          status: overallStatus,
           timeRangeLabel: timeRangeLabel,
           totalBookedCount: metrics['total'] ?? 0,
           waitingCount: metrics['waiting'] ?? 0,
           activeCount: metrics['active'] ?? 0,
           completedCount: metrics['completed'] ?? 0,
           priorityRank: priorityRank,
+          todaySlots: todaySlots,
+          selectedSlot: bestSlot,
         ),
       );
     }

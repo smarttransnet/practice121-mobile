@@ -36,6 +36,7 @@ class SessionGroup {
     required this.id,
     required this.daysOfWeek,
     this.specificDate,
+    this.specificDates = const [],
     required this.timeBlocks,
     this.daysOff = const [],
   });
@@ -43,10 +44,20 @@ class SessionGroup {
   final String id;
   final List<String> daysOfWeek;
   final String? specificDate;
+  final List<String> specificDates;
   final List<TimeBlock> timeBlocks;
   final List<String> daysOff;
 
   factory SessionGroup.fromJson(Map<String, dynamic> json) {
+    List<String> parsedSpecificDates = [];
+    if (json['specificDates'] is List) {
+      parsedSpecificDates = (json['specificDates'] as List<dynamic>)
+          .map((e) => e.toString())
+          .toList();
+    } else if (json['specificDate'] != null && json['specificDate'].toString().isNotEmpty) {
+      parsedSpecificDates = [json['specificDate'].toString()];
+    }
+
     return SessionGroup(
       id: json['id']?.toString() ?? '',
       daysOfWeek: (json['daysOfWeek'] as List<dynamic>?)
@@ -54,6 +65,7 @@ class SessionGroup {
               .toList() ??
           [],
       specificDate: json['specificDate']?.toString(),
+      specificDates: parsedSpecificDates,
       timeBlocks: (json['timeBlocks'] as List<dynamic>?)
               ?.map((e) => TimeBlock.fromJson(e as Map<String, dynamic>))
               .toList() ??
@@ -104,6 +116,27 @@ class PracticeCentre {
   }
 }
 
+/// Represents an active or scheduled session slot for a practice centre on a given day.
+class DaySessionSlot {
+  const DaySessionSlot({
+    required this.id,
+    required this.groupId,
+    required this.label,
+    required this.startTime,
+    required this.endTime,
+    required this.timeRange,
+    required this.status,
+  });
+
+  final String id;
+  final String groupId;
+  final String label;
+  final String startTime;
+  final String endTime;
+  final String timeRange;
+  final SessionScheduleStatus status;
+}
+
 /// Evaluated summary of a practice centre session for the Dashboard view.
 class CentreSessionSummary {
   const CentreSessionSummary({
@@ -115,6 +148,8 @@ class CentreSessionSummary {
     required this.activeCount,
     required this.completedCount,
     this.priorityRank = 999,
+    this.todaySlots = const [],
+    this.selectedSlot,
   });
 
   final PracticeCentre centre;
@@ -125,4 +160,6 @@ class CentreSessionSummary {
   final int activeCount;
   final int completedCount;
   final int priorityRank;
+  final List<DaySessionSlot> todaySlots;
+  final DaySessionSlot? selectedSlot;
 }

@@ -132,15 +132,90 @@ class PracticeCentreCard extends StatelessWidget {
                   color: theme.colorScheme.primary,
                 ),
                 const SizedBox(width: 6),
-                Text(
-                  summary.timeRangeLabel,
-                  style: theme.textTheme.bodyMedium?.copyWith(
-                    fontWeight: FontWeight.w600,
-                    color: theme.colorScheme.primary,
+                Expanded(
+                  child: Text(
+                    summary.timeRangeLabel,
+                    style: theme.textTheme.bodyMedium?.copyWith(
+                      fontWeight: FontWeight.w600,
+                      color: theme.colorScheme.primary,
+                    ),
                   ),
                 ),
               ],
             ),
+
+            if (summary.todaySlots.length > 1) ...[
+              const SizedBox(height: 10),
+              Wrap(
+                spacing: 8,
+                runSpacing: 6,
+                children: summary.todaySlots.map((slot) {
+                  final isSlotActive =
+                      slot.status == SessionScheduleStatus.active;
+                  return InkWell(
+                    onTap: () {
+                      final updated = CentreSessionSummary(
+                        centre: summary.centre,
+                        status: slot.status,
+                        timeRangeLabel: '${slot.label} (${slot.timeRange})',
+                        totalBookedCount: summary.totalBookedCount,
+                        waitingCount: summary.waitingCount,
+                        activeCount: summary.activeCount,
+                        completedCount: summary.completedCount,
+                        todaySlots: summary.todaySlots,
+                        selectedSlot: slot,
+                      );
+                      onStartSession(updated);
+                    },
+                    borderRadius: BorderRadius.circular(20),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 10, vertical: 5),
+                      decoration: BoxDecoration(
+                        color: isSlotActive
+                            ? AppColors.success.withValues(alpha: 0.12)
+                            : theme.colorScheme.surfaceContainerHighest
+                                .withValues(alpha: 0.5),
+                        borderRadius: BorderRadius.circular(20),
+                        border: Border.all(
+                          color: isSlotActive
+                              ? AppColors.success
+                              : theme.colorScheme.outlineVariant,
+                          width: isSlotActive ? 1.5 : 1.0,
+                        ),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            isSlotActive
+                                ? Icons.fiber_manual_record
+                                : Icons.access_time_rounded,
+                            size: isSlotActive ? 10 : 13,
+                            color: isSlotActive
+                                ? AppColors.success
+                                : theme.colorScheme.onSurfaceVariant,
+                          ),
+                          const SizedBox(width: 5),
+                          Text(
+                            '${slot.label}: ${slot.timeRange}',
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: isSlotActive
+                                  ? FontWeight.bold
+                                  : FontWeight.w500,
+                              color: isSlotActive
+                                  ? AppColors.success
+                                  : theme.colorScheme.onSurface,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  );
+                }).toList(),
+              ),
+            ],
             const SizedBox(height: 16),
             const Divider(height: 1),
             const SizedBox(height: 16),
