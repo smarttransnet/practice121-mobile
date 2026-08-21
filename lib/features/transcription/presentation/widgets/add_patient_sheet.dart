@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../app/theme/app_colors.dart';
+import '../../../../core/utils/age_helper.dart';
+import '../../../../core/utils/nic_decoder.dart';
 import '../../data/services/queue_service.dart';
 import '../controllers/transcription_controller.dart';
 import 'add_child_dialog.dart';
@@ -82,6 +84,8 @@ class _AddPatientSheetState extends ConsumerState<AddPatientSheet> {
   final _regNicController = TextEditingController();
   DateTime? _regSelectedDob;
   String _regGender = '';
+  String? _regNicError;
+  bool _regAutoFilledFromNic = false;
 
   AddPatientMode _mode = AddPatientMode.input;
   bool _showAdvancedSearch = false;
@@ -177,10 +181,10 @@ class _AddPatientSheetState extends ConsumerState<AddPatientSheet> {
 
         final otpRes = await queueService.sendPatientOtp(normalized);
 
-        if (otpRes.patientExists && otpRes.sessionId != null) {
+        if (otpRes.sessionId != null) {
           _otpSessionId = otpRes.sessionId;
           _maskedMobile = otpRes.maskedMobile ?? normalized;
-          _startCooldown(otpRes.cooldownSeconds ?? 30);
+          _startCooldown(otpRes.cooldownSeconds ?? 60);
           setState(() {
             _mode = AddPatientMode.otp;
             _isSubmitting = false;
@@ -253,12 +257,27 @@ class _AddPatientSheetState extends ConsumerState<AddPatientSheet> {
           verificationToken: verifyRes.verificationToken,
         );
 
-        if (lookup != null) {
+        if (lookup != null && lookup.primaryPatient.id.isNotEmpty) {
           setState(() {
             _primaryPatientRecord = lookup.primaryPatient;
             _verifiedChildren = List.from(lookup.children);
             _verifiedPatient = lookup.primaryPatient;
             _mode = AddPatientMode.verified;
+            _isSubmitting = false;
+          });
+          return;
+        } else {
+          // New mobile number with no records -> Go directly to register patient step
+          _regFirstNameController.clear();
+          _regLastNameController.clear();
+          _regDobController.clear();
+          _regNicController.clear();
+          _regSelectedDob = null;
+          _regGender = '';
+          _regNicError = null;
+          _regAutoFilledFromNic = false;
+          setState(() {
+            _mode = AddPatientMode.register;
             _isSubmitting = false;
           });
           return;
@@ -736,6 +755,41 @@ class _AddPatientSheetState extends ConsumerState<AddPatientSheet> {
     );
   }
 
+  void _onRegNicChanged(String val) {
+    final trimmed = val.trim();
+    if (trimmed.isEmpty) {
+      setState(() {
+        _regNicError = null;
+        _regAutoFilledFromNic = false;
+      });
+      return;
+    }
+
+    final decode = decodeNic(trimmed);
+    if (decode.isValid && decode.normalizedNic != null) {
+      setState(() {
+        _regNicError = null;
+        _regAutoFilledFromNic = true;
+        if (decode.dateOfBirth != null) {
+          _regDobController.text = decode.dateOfBirth!;
+          _regSelectedDob = DateTime.tryParse(decode.dateOfBirth!);
+        }
+        if (decode.gender != null) {
+          _regGender = decode.gender!;
+        }
+      });
+    } else {
+      setState(() {
+        _regAutoFilledFromNic = false;
+        if (trimmed.length >= 10) {
+          _regNicError = decode.error ?? 'Please enter a valid Sri Lankan NIC number.';
+        } else {
+          _regNicError = null;
+        }
+      });
+    }
+  }
+
   Future<void> _pickRegDob(BuildContext context) async {
     final now = DateTime.now();
     final picked = await showDatePicker(
@@ -746,16 +800,58 @@ class _AddPatientSheetState extends ConsumerState<AddPatientSheet> {
       helpText: 'Select Patient Date of Birth',
     );
     if (picked != null) {
+      final dobStr =
+          '${picked.year}-${picked.month.toString().padLeft(2, '0')}-${picked.day.toString().padLeft(2, '0')}';
       setState(() {
         _regSelectedDob = picked;
-        _regDobController.text =
-            '${picked.year}-${picked.month.toString().padLeft(2, '0')}-${picked.day.toString().padLeft(2, '0')}';
+        _regDobController.text = dobStr;
+
+        // Cross-check with NIC if entered
+        final nic = _regNicController.text.trim();
+        if (nic.isNotEmpty) {
+          final decode = decodeNic(nic);
+          if (decode.isValid && decode.dateOfBirth != null && decode.dateOfBirth != dobStr) {
+            _regNicError = 'Date of birth does not match the provided NIC. Please check both values.';
+          } else if (decode.isValid) {
+            _regNicError = null;
+          }
+        }
       });
     }
   }
 
   Future<void> _handleRegisterPatient() async {
     if (!(_regFormKey.currentState?.validate() ?? false)) return;
+
+    final firstName = _regFirstNameController.text.trim();
+    if (firstName.isEmpty) {
+      setState(() => _errorMessage = 'First name is required');
+      return;
+    }
+
+    final dobStr = _regDobController.text.trim();
+    final nic = _regNicController.text.trim();
+
+    // Age validation: if over 18, NIC is required
+    final age = calculateAge(dobStr);
+    if (age.years > 18 && nic.isEmpty) {
+      setState(() => _errorMessage = 'NIC is required for patients over 18 years old.');
+      return;
+    }
+
+    // NIC validation and cross-check
+    if (nic.isNotEmpty) {
+      final decode = decodeNic(nic);
+      if (!decode.isValid) {
+        setState(() => _errorMessage = decode.error ?? 'Please enter a valid Sri Lankan NIC number.');
+        return;
+      }
+
+      if (dobStr.isNotEmpty && decode.dateOfBirth != null && decode.dateOfBirth != dobStr) {
+        setState(() => _errorMessage = 'Date of birth does not match the provided NIC. Please check both values.');
+        return;
+      }
+    }
 
     setState(() {
       _isSubmitting = true;
@@ -767,10 +863,10 @@ class _AddPatientSheetState extends ConsumerState<AddPatientSheet> {
       final mobile = _pendingMobile ?? _normalizeLkMobile(_mobileController.text.trim());
 
       final newPatientId = await queueService.registerPatient(
-        firstName: _regFirstNameController.text.trim(),
+        firstName: firstName,
         lastName: _regLastNameController.text.trim().isNotEmpty ? _regLastNameController.text.trim() : null,
-        dateOfBirth: _regDobController.text.trim().isNotEmpty ? _regDobController.text.trim() : null,
-        nicNumber: _regNicController.text.trim().isNotEmpty ? _regNicController.text.trim() : null,
+        dateOfBirth: dobStr.isNotEmpty ? dobStr : null,
+        nicNumber: nic.isNotEmpty ? normalizeNic(nic) : null,
         gender: _regGender.isNotEmpty ? _regGender : null,
         mobileNumber: mobile,
         isMobileOwner: true,
@@ -781,11 +877,11 @@ class _AddPatientSheetState extends ConsumerState<AddPatientSheet> {
       setState(() {
         _verifiedPatient = PatientRecord(
           id: newPatientId,
-          firstName: _regFirstNameController.text.trim(),
+          firstName: firstName,
           lastName: _regLastNameController.text.trim().isNotEmpty ? _regLastNameController.text.trim() : null,
           mobileNumber: mobile,
-          nicNumber: _regNicController.text.trim().isNotEmpty ? _regNicController.text.trim() : null,
-          dateOfBirth: _regDobController.text.trim().isNotEmpty ? _regDobController.text.trim() : null,
+          nicNumber: nic.isNotEmpty ? normalizeNic(nic) : null,
+          dateOfBirth: dobStr.isNotEmpty ? dobStr : null,
           gender: _regGender.isNotEmpty ? _regGender : null,
         );
         _primaryPatientRecord = _verifiedPatient;
@@ -804,6 +900,9 @@ class _AddPatientSheetState extends ConsumerState<AddPatientSheet> {
   }
 
   Widget _buildRegisterStep(ThemeData theme) {
+    final dobStr = _regDobController.text.trim();
+    final ageInfo = calculateAge(dobStr);
+
     return Form(
       key: _regFormKey,
       child: Column(
@@ -818,11 +917,11 @@ class _AddPatientSheetState extends ConsumerState<AddPatientSheet> {
             ),
             child: Row(
               children: [
-                const Icon(Icons.info_outline_rounded, color: AppColors.accent, size: 20),
+                const Icon(Icons.verified_user_rounded, color: AppColors.accent, size: 20),
                 const SizedBox(width: 10),
                 Expanded(
                   child: Text(
-                    'Register a new patient with mobile: ${_pendingMobile ?? _mobileController.text.trim()}',
+                    'Verified Mobile: ${_pendingMobile ?? _mobileController.text.trim()}',
                     style: theme.textTheme.bodySmall?.copyWith(
                       color: AppColors.accent,
                       fontWeight: FontWeight.w600,
@@ -879,30 +978,38 @@ class _AddPatientSheetState extends ConsumerState<AddPatientSheet> {
                 icon: const Icon(Icons.calendar_today_rounded, size: 20),
                 onPressed: () => _pickRegDob(context),
               ),
+              helperText: dobStr.isNotEmpty ? 'Age: ${ageInfo.formatted}' : 'Required if over 18 years old',
             ),
           ),
           const SizedBox(height: 12),
 
-          // NIC
+          // NIC Number
           TextFormField(
             controller: _regNicController,
-            decoration: const InputDecoration(
+            onChanged: _onRegNicChanged,
+            decoration: InputDecoration(
               labelText: 'NIC Number (Optional if under 18)',
+              hintText: 'e.g. 882441524V or 199824401524',
               isDense: true,
-              border: OutlineInputBorder(),
-              prefixIcon: Icon(Icons.badge_rounded, size: 20),
+              border: const OutlineInputBorder(),
+              prefixIcon: const Icon(Icons.badge_rounded, size: 20),
+              errorText: _regNicError,
+              helperText: _regAutoFilledFromNic ? 'DOB and Gender auto-filled from NIC' : null,
+              helperStyle: const TextStyle(color: Colors.green, fontWeight: FontWeight.w600),
             ),
           ),
           const SizedBox(height: 12),
 
           // Gender
           DropdownButtonFormField<String>(
+            key: ValueKey(_regGender),
             initialValue: _regGender.isEmpty ? null : _regGender,
-            decoration: const InputDecoration(
+            decoration: InputDecoration(
               labelText: 'Gender',
               isDense: true,
-              border: OutlineInputBorder(),
-              prefixIcon: Icon(Icons.wc_rounded, size: 20),
+              border: const OutlineInputBorder(),
+              prefixIcon: const Icon(Icons.wc_rounded, size: 20),
+              helperText: _regAutoFilledFromNic ? 'Auto-filled from NIC' : null,
             ),
             items: const [
               DropdownMenuItem(value: 'Male', child: Text('Male')),
@@ -919,7 +1026,7 @@ class _AddPatientSheetState extends ConsumerState<AddPatientSheet> {
             children: [
               Expanded(
                 child: OutlinedButton(
-                  onPressed: _isSubmitting ? null : () => setState(() => _mode = AddPatientMode.notFound),
+                  onPressed: _isSubmitting ? null : () => setState(() => _mode = AddPatientMode.input),
                   child: const Text('Cancel'),
                 ),
               ),
