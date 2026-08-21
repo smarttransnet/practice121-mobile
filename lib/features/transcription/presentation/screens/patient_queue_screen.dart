@@ -11,9 +11,7 @@ import '../../../../design_system/widgets/empty_state.dart';
 import '../../../../design_system/widgets/status_badge.dart';
 import '../../../../core/config/app_config.dart';
 import '../../data/services/queue_service.dart';
-import '../../data/services/clinical_note_fhir_service.dart';
 import '../controllers/transcription_controller.dart';
-import '../controllers/transcription_state.dart';
 import '../widgets/add_patient_sheet.dart';
 
 /// Screen displaying the active patient queue for a selected practice centre.
@@ -346,7 +344,10 @@ class _PatientQueueScreenState extends ConsumerState<PatientQueueScreen> {
                                 icon: Icons.people_outline_rounded,
                               )
                             : ListView.builder(
-                                padding: const EdgeInsets.all(12),
+                                padding: const EdgeInsets.only(
+                                  top: 12, left: 12, right: 12,
+                                  bottom: 80, // Extra space so FAB doesn't cover last item
+                                ),
                                 itemCount: waitingTickets.length,
                                 itemBuilder: (context, index) {
                                   final ticket = waitingTickets[index];

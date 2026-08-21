@@ -7,7 +7,7 @@ import '../../data/services/queue_service.dart';
 import '../controllers/transcription_controller.dart';
 import 'add_child_dialog.dart';
 
-enum AddPatientMode { input, otp, select, verified, notFound }
+enum AddPatientMode { input, otp, select, verified, notFound, register }
 
 /// Multi-step Modal sheet for adding a patient to the current session queue.
 /// Supports OTP verification, patient lookup, and priority assignment matching Web.
@@ -74,6 +74,15 @@ class _AddPatientSheetState extends ConsumerState<AddPatientSheet> {
   final _lastNameController = TextEditingController();
   final _nicController = TextEditingController();
 
+  // Registration form controllers
+  final _regFormKey = GlobalKey<FormState>();
+  final _regFirstNameController = TextEditingController();
+  final _regLastNameController = TextEditingController();
+  final _regDobController = TextEditingController();
+  final _regNicController = TextEditingController();
+  DateTime? _regSelectedDob;
+  String _regGender = '';
+
   AddPatientMode _mode = AddPatientMode.input;
   bool _showAdvancedSearch = false;
 
@@ -95,6 +104,10 @@ class _AddPatientSheetState extends ConsumerState<AddPatientSheet> {
     _firstNameController.dispose();
     _lastNameController.dispose();
     _nicController.dispose();
+    _regFirstNameController.dispose();
+    _regLastNameController.dispose();
+    _regDobController.dispose();
+    _regNicController.dispose();
     _cooldownTimer?.cancel();
     super.dispose();
   }
@@ -431,7 +444,9 @@ class _AddPatientSheetState extends ConsumerState<AddPatientSheet> {
                             ? 'Patient Verified'
                             : _mode == AddPatientMode.select
                                 ? 'Select Patient Record'
-                                : 'Add Patient to Queue',
+                                : _mode == AddPatientMode.register
+                                    ? 'Register New Patient'
+                                    : 'Add Patient to Queue',
                     style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
                   ),
                 ),
@@ -474,6 +489,7 @@ class _AddPatientSheetState extends ConsumerState<AddPatientSheet> {
             if (_mode == AddPatientMode.otp) _buildOtpStep(theme),
             if (_mode == AddPatientMode.select) _buildSelectStep(theme),
             if (_mode == AddPatientMode.notFound) _buildNotFoundStep(theme),
+            if (_mode == AddPatientMode.register) _buildRegisterStep(theme),
             if (_mode == AddPatientMode.verified) _buildVerifiedStep(theme),
           ],
         ),
@@ -693,11 +709,239 @@ class _AddPatientSheetState extends ConsumerState<AddPatientSheet> {
         ),
         const SizedBox(height: 20),
 
+        FilledButton.icon(
+          onPressed: () {
+            // Pre-clear registration fields
+            _regFirstNameController.clear();
+            _regLastNameController.clear();
+            _regDobController.clear();
+            _regNicController.clear();
+            _regSelectedDob = null;
+            _regGender = '';
+            setState(() => _mode = AddPatientMode.register);
+          },
+          icon: const Icon(Icons.person_add_rounded),
+          label: const Text('Register New Patient'),
+          style: FilledButton.styleFrom(
+            backgroundColor: AppColors.accent,
+            padding: const EdgeInsets.symmetric(vertical: 14),
+          ),
+        ),
+        const SizedBox(height: 12),
         OutlinedButton(
           onPressed: () => setState(() => _mode = AddPatientMode.input),
-          child: const Text('Back'),
+          child: const Text('Back to Search'),
         ),
       ],
+    );
+  }
+
+  Future<void> _pickRegDob(BuildContext context) async {
+    final now = DateTime.now();
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: _regSelectedDob ?? DateTime(now.year - 25, now.month, now.day),
+      firstDate: DateTime(1900),
+      lastDate: now,
+      helpText: 'Select Patient Date of Birth',
+    );
+    if (picked != null) {
+      setState(() {
+        _regSelectedDob = picked;
+        _regDobController.text =
+            '${picked.year}-${picked.month.toString().padLeft(2, '0')}-${picked.day.toString().padLeft(2, '0')}';
+      });
+    }
+  }
+
+  Future<void> _handleRegisterPatient() async {
+    if (!(_regFormKey.currentState?.validate() ?? false)) return;
+
+    setState(() {
+      _isSubmitting = true;
+      _errorMessage = null;
+    });
+
+    try {
+      final queueService = ref.read(queueServiceProvider);
+      final mobile = _pendingMobile ?? _normalizeLkMobile(_mobileController.text.trim());
+
+      final newPatientId = await queueService.registerPatient(
+        firstName: _regFirstNameController.text.trim(),
+        lastName: _regLastNameController.text.trim().isNotEmpty ? _regLastNameController.text.trim() : null,
+        dateOfBirth: _regDobController.text.trim().isNotEmpty ? _regDobController.text.trim() : null,
+        nicNumber: _regNicController.text.trim().isNotEmpty ? _regNicController.text.trim() : null,
+        gender: _regGender.isNotEmpty ? _regGender : null,
+        mobileNumber: mobile,
+        isMobileOwner: true,
+        createdByDoctorId: widget.doctorId,
+      );
+
+      // Registration succeeded — set verified patient and proceed to queue step
+      setState(() {
+        _verifiedPatient = PatientRecord(
+          id: newPatientId,
+          firstName: _regFirstNameController.text.trim(),
+          lastName: _regLastNameController.text.trim().isNotEmpty ? _regLastNameController.text.trim() : null,
+          mobileNumber: mobile,
+          nicNumber: _regNicController.text.trim().isNotEmpty ? _regNicController.text.trim() : null,
+          dateOfBirth: _regDobController.text.trim().isNotEmpty ? _regDobController.text.trim() : null,
+          gender: _regGender.isNotEmpty ? _regGender : null,
+        );
+        _primaryPatientRecord = _verifiedPatient;
+        _verifiedChildren = [];
+        _mode = AddPatientMode.verified;
+        _isSubmitting = false;
+      });
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _errorMessage = e.toString().replaceAll('Exception: ', '');
+          _isSubmitting = false;
+        });
+      }
+    }
+  }
+
+  Widget _buildRegisterStep(ThemeData theme) {
+    return Form(
+      key: _regFormKey,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: AppColors.accent.withValues(alpha: 0.08),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: AppColors.accent.withValues(alpha: 0.3)),
+            ),
+            child: Row(
+              children: [
+                const Icon(Icons.info_outline_rounded, color: AppColors.accent, size: 20),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    'Register a new patient with mobile: ${_pendingMobile ?? _mobileController.text.trim()}',
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: AppColors.accent,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 16),
+
+          // First Name *
+          TextFormField(
+            controller: _regFirstNameController,
+            textCapitalization: TextCapitalization.words,
+            decoration: const InputDecoration(
+              labelText: 'First Name *',
+              isDense: true,
+              border: OutlineInputBorder(),
+              prefixIcon: Icon(Icons.person_rounded, size: 20),
+            ),
+            validator: (val) {
+              if (val == null || val.trim().isEmpty) return 'First name is required';
+              return null;
+            },
+          ),
+          const SizedBox(height: 12),
+
+          // Last Name
+          TextFormField(
+            controller: _regLastNameController,
+            textCapitalization: TextCapitalization.words,
+            decoration: const InputDecoration(
+              labelText: 'Last Name',
+              isDense: true,
+              border: OutlineInputBorder(),
+              prefixIcon: Icon(Icons.person_outline_rounded, size: 20),
+            ),
+          ),
+          const SizedBox(height: 12),
+
+          // Date of Birth
+          TextFormField(
+            controller: _regDobController,
+            readOnly: true,
+            onTap: () => _pickRegDob(context),
+            decoration: InputDecoration(
+              labelText: 'Date of Birth',
+              hintText: 'yyyy-mm-dd',
+              isDense: true,
+              border: const OutlineInputBorder(),
+              prefixIcon: const Icon(Icons.calendar_today_rounded, size: 20),
+              suffixIcon: IconButton(
+                icon: const Icon(Icons.calendar_today_rounded, size: 20),
+                onPressed: () => _pickRegDob(context),
+              ),
+            ),
+          ),
+          const SizedBox(height: 12),
+
+          // NIC
+          TextFormField(
+            controller: _regNicController,
+            decoration: const InputDecoration(
+              labelText: 'NIC Number (Optional if under 18)',
+              isDense: true,
+              border: OutlineInputBorder(),
+              prefixIcon: Icon(Icons.badge_rounded, size: 20),
+            ),
+          ),
+          const SizedBox(height: 12),
+
+          // Gender
+          DropdownButtonFormField<String>(
+            initialValue: _regGender.isEmpty ? null : _regGender,
+            decoration: const InputDecoration(
+              labelText: 'Gender',
+              isDense: true,
+              border: OutlineInputBorder(),
+              prefixIcon: Icon(Icons.wc_rounded, size: 20),
+            ),
+            items: const [
+              DropdownMenuItem(value: 'Male', child: Text('Male')),
+              DropdownMenuItem(value: 'Female', child: Text('Female')),
+              DropdownMenuItem(value: 'Other', child: Text('Other')),
+            ],
+            onChanged: (val) {
+              if (val != null) setState(() => _regGender = val);
+            },
+          ),
+          const SizedBox(height: 20),
+
+          Row(
+            children: [
+              Expanded(
+                child: OutlinedButton(
+                  onPressed: _isSubmitting ? null : () => setState(() => _mode = AddPatientMode.notFound),
+                  child: const Text('Cancel'),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                flex: 2,
+                child: FilledButton.icon(
+                  onPressed: _isSubmitting ? null : _handleRegisterPatient,
+                  icon: _isSubmitting
+                      ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                      : const Icon(Icons.person_add_rounded),
+                  label: Text(_isSubmitting ? 'Registering...' : 'Save & Continue'),
+                  style: FilledButton.styleFrom(
+                    backgroundColor: AppColors.accent,
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
     );
   }
 
