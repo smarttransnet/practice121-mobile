@@ -2,7 +2,7 @@ name: note365_mobile
 description: "Note365 — Real-time clinical voice transcription mobile app."
 publish_to: 'none'
 
-version: 1.0.1+2
+version: 1.0.2+5
 
 environment:
   sdk: ^3.11.5

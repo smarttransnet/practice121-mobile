@@ -273,27 +273,12 @@ class _AddPatientSheetState extends ConsumerState<AddPatientSheet> {
           verificationToken: verifyRes.verificationToken,
         );
 
-        if (lookup != null && lookup.primaryPatient.id.isNotEmpty) {
+        if (lookup != null) {
           setState(() {
-            _primaryPatientRecord = lookup.primaryPatient;
+            _primaryPatientRecord = lookup.primaryPatient.id.isNotEmpty ? lookup.primaryPatient : null;
             _verifiedChildren = List.from(lookup.children);
-            _verifiedPatient = lookup.primaryPatient;
+            _verifiedPatient = lookup.primaryPatient.id.isNotEmpty ? lookup.primaryPatient : null;
             _mode = AddPatientMode.verified;
-            _isSubmitting = false;
-          });
-          return;
-        } else {
-          // New mobile number with no records -> Go directly to register patient step
-          _regFirstNameController.clear();
-          _regLastNameController.clear();
-          _regDobController.clear();
-          _regNicController.clear();
-          _regSelectedDob = null;
-          _regGender = '';
-          _regNicError = null;
-          _regAutoFilledFromNic = false;
-          setState(() {
-            _mode = AddPatientMode.register;
             _isSubmitting = false;
           });
           return;
@@ -313,13 +298,15 @@ class _AddPatientSheetState extends ConsumerState<AddPatientSheet> {
   }
 
   Future<void> _handleOpenAddChildDialog() async {
-    final parent = _primaryPatientRecord ?? _verifiedPatient;
-    if (parent == null || parent.id.isEmpty) {
-      setState(() => _errorMessage = 'Primary parent account is required to register a child.');
-      return;
-    }
-
-    final newChild = await AddChildDialog.show(context, parentId: parent.id);
+    final parentId = _primaryPatientRecord?.id ?? _verifiedPatient?.id;
+    final mobileNumber = _pendingMobile ?? _mobileController.text.trim();
+    
+    final newChild = await AddChildDialog.show(
+      context, 
+      parentId: parentId, 
+      mobileNumber: mobileNumber, 
+      doctorId: widget.doctorId,
+    );
     if (newChild != null && mounted) {
       setState(() {
         _verifiedChildren.add(newChild);
@@ -378,7 +365,12 @@ class _AddPatientSheetState extends ConsumerState<AddPatientSheet> {
   }
 
   Future<void> _handleFinalConfirm() async {
-    final targetMobile = _verifiedPatient?.mobileNumber.isNotEmpty ?? false
+    if (_verifiedPatient == null) {
+      setState(() => _errorMessage = 'Please select a patient.');
+      return;
+    }
+
+    final targetMobile = _verifiedPatient!.mobileNumber.isNotEmpty 
         ? _verifiedPatient!.mobileNumber
         : _mobileController.text.trim();
 
@@ -901,7 +893,6 @@ class _AddPatientSheetState extends ConsumerState<AddPatientSheet> {
           gender: _regGender.isNotEmpty ? _regGender : null,
         );
         _primaryPatientRecord = _verifiedPatient;
-        _verifiedChildren = [];
         _mode = AddPatientMode.verified;
         _isSubmitting = false;
       });
@@ -1069,8 +1060,7 @@ class _AddPatientSheetState extends ConsumerState<AddPatientSheet> {
   }
 
   Widget _buildVerifiedStep(ThemeData theme) {
-    final parent = _primaryPatientRecord ?? _verifiedPatient!;
-    final selectedId = _verifiedPatient?.id ?? parent.id;
+    final selectedId = _verifiedPatient?.id;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -1109,30 +1099,76 @@ class _AddPatientSheetState extends ConsumerState<AddPatientSheet> {
               'Who is this appointment for?',
               style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.bold),
             ),
-            TextButton.icon(
-              onPressed: _handleOpenAddChildDialog,
-              icon: const Icon(Icons.add_rounded, size: 18, color: AppColors.accent),
-              label: const Text(
-                'Add Child',
-                style: TextStyle(color: AppColors.accent, fontWeight: FontWeight.bold),
-              ),
-            ),
           ],
         ),
         const SizedBox(height: 8),
 
         // 1. Primary Account Option Card
-        _buildPatientOptionCard(
-          theme: theme,
-          title: '${parent.firstName} ${parent.lastName ?? ''}'.trim(),
-          subtitle: 'Primary Account (Self) ${parent.nicNumber != null && parent.nicNumber!.isNotEmpty ? '• NIC: ${parent.nicNumber}' : ''}',
-          isSelected: selectedId == parent.id,
-          onTap: () => setState(() => _verifiedPatient = parent),
+        if (_primaryPatientRecord != null) 
+          _buildPatientOptionCard(
+            theme: theme,
+            title: '${_primaryPatientRecord!.firstName} ${_primaryPatientRecord!.lastName ?? ''}'.trim(),
+            subtitle: 'Primary Account (Self) ${_primaryPatientRecord!.nicNumber != null && _primaryPatientRecord!.nicNumber!.isNotEmpty ? '• NIC: ${_primaryPatientRecord!.nicNumber}' : ''}',
+            isSelected: selectedId == _primaryPatientRecord!.id,
+            onTap: () => setState(() => _verifiedPatient = _primaryPatientRecord),
+          )
+        else 
+          // Match the web UI: "For Me (New Patient)" with an Add Details button
+          Container(
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: theme.colorScheme.outlineVariant),
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text('For Me (New Patient)', style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.bold)),
+                OutlinedButton(
+                  onPressed: () {
+                    // Pre-clear registration fields and switch to register mode
+                    _regFirstNameController.clear();
+                    _regLastNameController.clear();
+                    _regDobController.clear();
+                    _regNicController.clear();
+                    _regSelectedDob = null;
+                    _regGender = '';
+                    _regNicError = null;
+                    _regAutoFilledFromNic = false;
+                    setState(() => _mode = AddPatientMode.register);
+                  },
+                  style: OutlinedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 0),
+                    minimumSize: const Size(0, 32),
+                  ),
+                  child: const Text('Add Details'),
+                ),
+              ],
+            ),
+          ),
+        
+        const SizedBox(height: 16),
+        Text(
+          'Family Members',
+          style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.bold),
         ),
+        const SizedBox(height: 8),
+
+        if (_verifiedChildren.isEmpty)
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 8.0),
+            child: Text(
+              'No other family members found.',
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+                fontStyle: FontStyle.italic,
+              ),
+            ),
+          ),
 
         // 2. Children Option Cards
         for (final child in _verifiedChildren) ...[
-          const SizedBox(height: 8),
           _buildPatientOptionCard(
             theme: theme,
             title: '${child.firstName} ${child.lastName ?? ''}'.trim(),
@@ -1140,7 +1176,20 @@ class _AddPatientSheetState extends ConsumerState<AddPatientSheet> {
             isSelected: selectedId == child.id,
             onTap: () => setState(() => _verifiedPatient = child),
           ),
+          const SizedBox(height: 8),
         ],
+
+        // + Add Family Member button (centered like web)
+        Center(
+          child: TextButton.icon(
+            onPressed: _handleOpenAddChildDialog,
+            icon: const Icon(Icons.add_rounded, size: 18, color: Colors.blue),
+            label: const Text(
+              'Add Family Member',
+              style: TextStyle(color: Colors.blue, fontWeight: FontWeight.bold),
+            ),
+          ),
+        ),
 
         if (widget.availableSessions.length > 1) ...[
           const SizedBox(height: 16),

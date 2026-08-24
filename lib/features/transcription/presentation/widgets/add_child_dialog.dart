@@ -10,19 +10,25 @@ import '../controllers/transcription_controller.dart';
 class AddChildDialog extends ConsumerStatefulWidget {
   const AddChildDialog({
     super.key,
-    required this.parentId,
+    this.parentId,
+    this.mobileNumber,
+    this.doctorId,
   });
 
-  final String parentId;
+  final String? parentId;
+  final String? mobileNumber;
+  final String? doctorId;
 
   static Future<PatientRecord?> show(
     BuildContext context, {
-    required String parentId,
+    String? parentId,
+    String? mobileNumber,
+    String? doctorId,
   }) {
     return showDialog<PatientRecord>(
       context: context,
       barrierDismissible: false,
-      builder: (_) => AddChildDialog(parentId: parentId),
+      builder: (_) => AddChildDialog(parentId: parentId, mobileNumber: mobileNumber, doctorId: doctorId),
     );
   }
 
@@ -119,14 +125,38 @@ class _AddChildDialogState extends ConsumerState<AddChildDialog> {
       final fullName = '$firstName $lastName'.trim();
       final dobStr = _dobController.text.trim();
 
-      final newChild = await queueService.addChildPatient(
-        widget.parentId,
-        firstName: firstName,
-        lastName: lastName.isEmpty ? null : lastName,
-        fullName: fullName,
-        dateOfBirth: dobStr,
-        gender: _gender,
-      );
+      PatientRecord? newChild;
+
+      if (widget.parentId != null) {
+        newChild = await queueService.addChildPatient(
+          widget.parentId!,
+          firstName: firstName,
+          lastName: lastName.isEmpty ? null : lastName,
+          fullName: fullName,
+          dateOfBirth: dobStr,
+          gender: _gender,
+        );
+      } else if (widget.mobileNumber != null) {
+        final newPatientId = await queueService.registerPatient(
+          firstName: firstName,
+          lastName: lastName.isEmpty ? null : lastName,
+          dateOfBirth: dobStr,
+          gender: _gender,
+          mobileNumber: widget.mobileNumber!,
+          isMobileOwner: false,
+          createdByDoctorId: widget.doctorId,
+        );
+        newChild = PatientRecord(
+          id: newPatientId,
+          firstName: firstName,
+          lastName: lastName.isEmpty ? null : lastName,
+          mobileNumber: widget.mobileNumber!,
+          dateOfBirth: dobStr,
+          gender: _gender,
+        );
+      } else {
+        throw Exception('Either parentId or mobileNumber must be provided.');
+      }
 
       if (mounted) {
         Navigator.of(context).pop(newChild);
