@@ -7,6 +7,58 @@ import '../models/auth_token.dart';
 
 /// Interacts with the Practice121 Auth API for Doctor authentication.
 class AuthService {
+  AuthService({http.Client? httpClient})
+      : _httpClient = httpClient ?? http.Client();
+
+  final http.Client _httpClient;
+
+  /// Helper to extract user-friendly error messages from HTTP error responses.
+  /// Categorizes infrastructure errors (503, 502, 504, 500) and extracts structured JSON details when available.
+  String _parseHttpErrorMessage(
+    http.Response response, {
+    required String defaultMessage,
+  }) {
+    String errorMessage;
+    if (response.statusCode == 503) {
+      errorMessage =
+          'The service is temporarily unavailable (503). Please try again in a few moments.';
+    } else if (response.statusCode == 502 || response.statusCode == 504) {
+      errorMessage =
+          'Unable to connect to the server (${response.statusCode}). Please check your connection or try again later.';
+    } else if (response.statusCode == 500) {
+      errorMessage =
+          'A server error occurred (500). Please try again later.';
+    } else if (response.statusCode == 401) {
+      errorMessage = 'Invalid email or password.';
+    } else {
+      errorMessage = defaultMessage;
+    }
+
+    try {
+      final errBody = jsonDecode(response.body);
+      if (errBody is Map<String, dynamic>) {
+        if (errBody['error'] != null) {
+          final errVal = errBody['error'];
+          if (errVal is Map<String, dynamic> && errVal['message'] != null) {
+            errorMessage = errVal['message'].toString();
+          } else {
+            errorMessage = errVal.toString();
+          }
+        } else if (errBody['detail'] != null) {
+          errorMessage = errBody['detail'].toString();
+        } else if (errBody['title'] != null) {
+          errorMessage = errBody['title'].toString();
+        } else if (errBody['message'] != null) {
+          errorMessage = errBody['message'].toString();
+        }
+      }
+    } catch (_) {
+      // Non-JSON bodies (e.g. Cloud Run 503 HTML error pages) retain the friendly status code message
+    }
+
+    return errorMessage;
+  }
+
   /// Authenticates a doctor using [email] and [password].
   ///
   /// Calls `POST /api/auth/login` and returns an [AuthToken].
@@ -27,7 +79,7 @@ class AuthService {
     AppLogger.i('AuthService: login attempt for $cleanEmail -> $uri');
 
     try {
-      final response = await http.post(
+      final response = await _httpClient.post(
         uri,
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode({
@@ -37,22 +89,10 @@ class AuthService {
       );
 
       if (response.statusCode != 200) {
-        String errorMessage =
-            'Authentication failed (${response.statusCode}).';
-        try {
-          final errBody = jsonDecode(response.body);
-          if (errBody is Map<String, dynamic>) {
-            if (errBody['error'] != null) {
-              errorMessage = errBody['error'].toString();
-            } else if (errBody['detail'] != null) {
-              errorMessage = errBody['detail'].toString();
-            } else if (errBody['title'] != null) {
-              errorMessage = errBody['title'].toString();
-            }
-          }
-        } catch (_) {
-          // ignore non-json body
-        }
+        final errorMessage = _parseHttpErrorMessage(
+          response,
+          defaultMessage: 'Authentication failed (${response.statusCode}).',
+        );
         AppLogger.w('AuthService: login failed — $errorMessage');
         throw UnexpectedFailure(errorMessage);
       }
@@ -100,7 +140,7 @@ class AuthService {
     AppLogger.i('AuthService: Google login attempt -> $uri');
 
     try {
-      final response = await http.post(
+      final response = await _httpClient.post(
         uri,
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode({
@@ -109,27 +149,11 @@ class AuthService {
       );
 
       if (response.statusCode != 200) {
-        String errorMessage =
-            'This Google account is not registered. Please register through the Web application or contact your administrator.';
-        try {
-          final errBody = jsonDecode(response.body);
-          if (errBody is Map<String, dynamic>) {
-            if (errBody['error'] != null) {
-              final errVal = errBody['error'];
-              if (errVal is Map<String, dynamic> && errVal['message'] != null) {
-                errorMessage = errVal['message'].toString();
-              } else {
-                errorMessage = errVal.toString();
-              }
-            } else if (errBody['detail'] != null) {
-              errorMessage = errBody['detail'].toString();
-            } else if (errBody['message'] != null) {
-              errorMessage = errBody['message'].toString();
-            }
-          }
-        } catch (_) {
-          // ignore non-json body
-        }
+        final errorMessage = _parseHttpErrorMessage(
+          response,
+          defaultMessage:
+              'This Google account is not registered. Please register through the Web application or contact your administrator.',
+        );
         AppLogger.w('AuthService: Google login failed (${response.statusCode}) — $errorMessage');
         throw UnexpectedFailure(errorMessage);
       }
@@ -178,7 +202,7 @@ class AuthService {
     AppLogger.i('AuthService: refreshing access token via $uri');
 
     try {
-      final response = await http.post(
+      final response = await _httpClient.post(
         uri,
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode({
@@ -188,6 +212,12 @@ class AuthService {
 
       if (response.statusCode != 200) {
         AppLogger.w('AuthService: token refresh HTTP error ${response.statusCode}');
+        if (response.statusCode == 503 ||
+            response.statusCode == 502 ||
+            response.statusCode == 504) {
+          throw UnexpectedFailure(
+              'The service is temporarily unavailable (${response.statusCode}). Please try again shortly.');
+        }
         throw UnexpectedFailure('Session expired (${response.statusCode}). Please log in again.');
       }
 
@@ -221,7 +251,7 @@ class AuthService {
     AppLogger.i('AuthService: revoking session via $uri');
 
     try {
-      await http.post(
+      await _httpClient.post(
         uri,
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode({
@@ -234,4 +264,3 @@ class AuthService {
     }
   }
 }
-
